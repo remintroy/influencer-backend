@@ -1,16 +1,35 @@
-import { BadRequestException, Body, Controller, Post, Res, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Post,
+  Param,
+  Res,
+  UnauthorizedException,
+  NotFoundException,
+} from '@nestjs/common';
 import { SigninDto } from './dto/signin.dto';
 import { AuthService } from './auth.service';
 import { Response } from 'express';
 import { ApiBody, ApiTags } from '@nestjs/swagger';
 import { SignupUserDto } from './dto/signup.user.dto';
+import { UserRole } from 'src/user/user.schema';
+import { SmsService } from 'src/notification/sms/sms.service';
+import { EmailService } from 'src/notification/email/email.service';
+import { UserService } from 'src/user/user.service';
+import { VerifyOtpDto } from './dto/verify-otp.dto';
 
 @ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly userService: UserService,
+    private readonly smsService: SmsService,
+    private readonly emailService: EmailService,
+  ) {}
 
-  @Post('signin')
+  @Post('signin-common')
   @ApiBody({ type: SigninDto })
   async signIn(@Body() credentials: SigninDto, @Res({ passthrough: true }) res: Response) {
     // Validate sign-in request
@@ -19,7 +38,7 @@ export class AuthController {
     }
 
     // Implement user sign-in logic
-    const user = await this.authService.getUserByEmailOrPhoneForPassword(credentials.username);
+    const user = await this.userService.getUserByEmailOrPhone(credentials.username);
 
     if (!user || !user.password) {
       // User not found or password not provided
@@ -31,11 +50,28 @@ export class AuthController {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const accessToken = await this.authService.generateJwtAccessToken(user);
-    const refreshToken = await this.authService.generateJwtRefreshToken(user);
+    if (user?.role == UserRole.USER && !user?.meta?.isVerified) {
+      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      const verificationCodeExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+      const meta = { ...user?.meta };
+
+      meta.verificationCode = otp;
+      meta.verificationCodeExpires = verificationCodeExpires;
+
+      await this.userService.updateUser(user?._id + '', { meta });
+
+      if (user?.phoneNumber) await this.smsService.sendOtp(user.phoneNumber!, otp);
+      if (user?.email) await this.emailService.sendOtp(user?.email!, otp);
+
+      throw new UnauthorizedException('Account not verified - A OTP has been send to your register email/phoneNumber');
+    }
 
     delete user.password; // Don't return password in the response
     delete user.meta;
+
+    const accessToken = await this.authService.generateJwtAccessToken(user);
+    const refreshToken = await this.authService.generateJwtRefreshToken(user);
 
     res.cookie('refresh_token', refreshToken, {
       httpOnly: true,
@@ -48,7 +84,8 @@ export class AuthController {
     return { ...user, accessToken, refreshToken };
   }
 
-  @Post('signin')
+  @Post('signup-user')
+  @ApiBody({ type: SignupUserDto })
   async signUp(@Body() reqData: SignupUserDto, @Res({ passthrough: true }) res: Response) {
     // Validate sign-in request
 
@@ -56,5 +93,95 @@ export class AuthController {
       // Minimum requirements
       throw new BadRequestException('Email & Password is required');
     }
+
+    const existingUser = await this.userService.getUserByEmailOrPhone(reqData?.email || reqData?.phoneNumber || '');
+
+    if (reqData?.email && existingUser) throw new BadRequestException('User with email already exists');
+    if (reqData?.phoneNumber && existingUser) throw new BadRequestException('User with phone number exits');
+    if (existingUser) throw new BadRequestException('User already exits');
+
+    const password = await this.authService.createPasswordHash(reqData?.password);
+    const newUser = await this.userService.createUser({
+      email: reqData?.email,
+      role: UserRole.USER,
+      phoneNumber: reqData?.phoneNumber,
+      profilePicture: reqData?.profilePicture,
+      password,
+    });
+
+    delete newUser.password; // Don't return password in the response
+
+    if (newUser?.role == UserRole.USER) {
+      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      const verificationCodeExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+      const meta = { ...newUser?.meta };
+
+      meta.verificationCode = otp;
+      meta.verificationCodeExpires = verificationCodeExpires;
+
+      await this.userService.updateUser(newUser?._id + '', { meta });
+
+      if (newUser?.phoneNumber) await this.smsService.sendOtp(newUser.phoneNumber!, otp);
+      if (newUser?.email) await this.emailService.sendOtp(newUser?.email!, otp);
+
+      return {
+        success: true,
+        data: { userId: newUser?._id },
+        message: 'User Created successfully - A OTP has been send to your register email/phoneNumber',
+      };
+    }
+
+    const accessToken = await this.authService.generateJwtAccessToken(newUser);
+    const refreshToken = await this.authService.generateJwtRefreshToken(newUser);
+
+    res.cookie('refresh_token', refreshToken, {
+      httpOnly: true,
+      secure: true, // Use true in production
+      sameSite: 'none',
+      path: '/api/auth/refresh', // Optional: restrict path where cookie is sent
+      maxAge: 365 * 24 * 60 * 60 * 1000, // 7 days
+    });
+
+    return { ...newUser, accessToken, refreshToken };
+  }
+
+  @Post('verify-otp/:userId')
+  @ApiBody({ type: VerifyOtpDto })
+  async verifyOtp(@Param('userId') userId: string, @Body() reqData: VerifyOtpDto, @Res({ passthrough: true }) res: Response) {
+    const otp = reqData?.otp;
+
+    if (!otp) throw new BadRequestException('Otp is required');
+
+    const userData = await this.userService.getUserById(userId);
+
+    if (!userData) throw new NotFoundException('User not found');
+
+    if (userData?.meta?.isVerified) throw new UnauthorizedException('User already verified');
+
+    if (otp != userData?.meta?.verificationCode || new Date(userData?.meta?.verificationCodeExpires as Date) < new Date()) {
+      throw new UnauthorizedException('Invalid Otp or Otp expired');
+    }
+
+    const meta = { ...userData?.meta };
+    meta.isVerified = true;
+    meta.verificationCode = '';
+
+    const verifiedUser = await this.userService.updateUser(userId, { meta });
+
+    delete verifiedUser?.password;
+
+    const accessToken = await this.authService.generateJwtAccessToken(userData);
+    const refreshToken = await this.authService.generateJwtRefreshToken(userData);
+
+    res.cookie('refresh_token', refreshToken, {
+      httpOnly: true,
+      secure: true, // Use true in production
+      sameSite: 'none',
+      path: '/api/auth/refresh', // Optional: restrict path where cookie is sent
+      maxAge: 365 * 24 * 60 * 60 * 1000, // 7 days
+    });
+
+    return { ...verifiedUser, accessToken, refreshToken };
   }
 }

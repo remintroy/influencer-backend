@@ -25,7 +25,7 @@ export enum InfluencerPlatforms {
 }
 @Schema({ timestamps: true })
 export class User {
-  _id: Types.ObjectId;
+  _id?: Types.ObjectId | string;
 
   @Prop({ required: true, enum: UserRole, default: UserRole.USER })
   role: UserRole;
@@ -86,9 +86,6 @@ export class User {
 
   @Prop()
   engagementRate?: number;
-
-  @Prop()
-  profileImage?: string;
 
   @Prop([String])
   images?: string[];

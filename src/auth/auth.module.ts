@@ -5,12 +5,15 @@ import { User, UserSchema } from 'src/user/user.schema';
 import { AuthController } from './auth.controller';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import { NotificationModule } from 'src/notification/notification.module';
+import { UserService } from 'src/user/user.service';
 
 @Module({
-  imports: [MongooseModule.forFeature([{ name: User.name, schema: UserSchema }])],
+  imports: [NotificationModule, MongooseModule.forFeature([{ name: User.name, schema: UserSchema }])],
   controllers: [AuthController],
   providers: [
     AuthService,
+    UserService,
     {
       provide: 'JWT_ACCESS_SERVICE',
       inject: [ConfigService],

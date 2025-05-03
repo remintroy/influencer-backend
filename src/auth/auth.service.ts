@@ -1,7 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { User, UserDocument } from 'src/user/user.schema';
-import { Model } from 'mongoose';
+import { User } from 'src/user/user.schema';
 import * as bcrypt from 'bcryptjs';
 import { JwtService } from '@nestjs/jwt';
 
@@ -9,14 +7,9 @@ import { JwtService } from '@nestjs/jwt';
 export class AuthService {
   // Implement authentication logic
   constructor(
-    @InjectModel(User.name) private userModel: Model<UserDocument>,
     @Inject('JWT_ACCESS_SERVICE') private readonly jwtAccessService: JwtService,
     @Inject('JWT_REFRESH_SERVICE') private readonly jwtRefreshService: JwtService,
   ) {}
-
-  async getUserByEmailOrPhoneForPassword(username: string): Promise<UserDocument | null> {
-    return (await this.userModel.findOne({ $or: [{ email: username }, { phoneNumber: username }] }))?.toJSON?.() || null;
-  }
 
   async comparePassword(plainPassword: string, hashedPassword: string) {
     return await bcrypt.compare(plainPassword, hashedPassword);
