@@ -23,9 +23,10 @@ export enum InfluencerPlatforms {
   LinkedIn = 'LinkedIn',
   Other = 'Other',
 }
-
 @Schema({ timestamps: true })
 export class User {
+  _id: Types.ObjectId;
+
   @Prop({ required: true, enum: UserRole, default: UserRole.USER })
   role: UserRole;
 
@@ -47,22 +48,12 @@ export class User {
   @Prop({ unique: true, sparse: true })
   googleId?: string;
 
-  @Prop({ default: false })
-  isVerified: boolean;
-
-  @Prop()
-  verificationCode?: string;
-
-  @Prop()
-  verificationCodeExpires?: Date;
-
   @Prop({ enum: UserAccountType, default: UserAccountType.INDIVIDUAL })
   accountType?: UserAccountType;
 
   @Prop()
   commercialRegistrationID?: string;
 
-  // Influencer-specific fields
   @Prop({
     type: [
       {
@@ -99,17 +90,30 @@ export class User {
   @Prop()
   profileImage?: string;
 
-  @Prop({ default: false })
-  welcomeMailWithPasswordSent?: boolean;
-
-  @Prop()
-  welcomeMailWithPasswordSentAt?: Date;
-
   @Prop([String])
   images?: string[];
 
   @Prop([String])
   videos?: string[];
+
+  // ✅ Moved all system-level info under 'meta'
+  @Prop({
+    type: {
+      isVerified: { type: Boolean, default: false },
+      verificationCode: String,
+      verificationCodeExpires: Date,
+      welcomeMailWithPasswordSent: { type: Boolean, default: false },
+      welcomeMailWithPasswordSentAt: Date,
+    },
+    default: {},
+  })
+  meta?: {
+    isVerified?: boolean;
+    verificationCode?: string;
+    verificationCodeExpires?: Date;
+    welcomeMailWithPasswordSent?: boolean;
+    welcomeMailWithPasswordSentAt?: Date;
+  };
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
