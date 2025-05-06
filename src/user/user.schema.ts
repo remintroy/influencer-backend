@@ -104,7 +104,7 @@ export class User {
   @Prop({
     type: {
       isVerified: { type: Boolean, default: false },
-      verificationCode: String,
+      verificationCode: { type: String, default: '' },
       verificationCodeExpires: Date,
       welcomeMailWithPasswordSent: { type: Boolean, default: false },
       welcomeMailWithPasswordSentAt: Date,

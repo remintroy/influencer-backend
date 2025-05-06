@@ -5,27 +5,35 @@ import { User, UserDocument, UserRole } from './user.schema';
 
 @Injectable()
 export class UserService {
-  private readonly projection = { password: 0 };
+  private readonly projection = { password: 0, meta: 0 };
 
   constructor(@InjectModel(User.name) private readonly userModel: Model<UserDocument>) {}
 
   private toUserSafe(user: UserDocument | null): Partial<User> | null {
     if (!user) return null;
-    const { password, __v, ...rest } = user.toObject();
+    const { password, __v, ...rest } = user?.toObject?.() || user;
     return rest;
   }
 
-  async getUserByEmailOrPhoneSudo(username: string): Promise<UserDocument | null> {
-    return this.userModel.findOne({
-      $or: [{ email: username }, { phoneNumber: username }],
-      role: { $ne: UserRole.ADMIN },
-    });
+  async getUserByEmailOrPhoneSudo(
+    username: string,
+    options?: { email?: string; phoneNumber?: string },
+  ): Promise<UserDocument | null> {
+    return this.userModel
+      .findOne({
+        $or: [{ email: options?.email || username }, { phoneNumber: options?.phoneNumber || username }],
+      })
+      .lean();
   }
 
-  async getUserByEmailOrPhone(username: string): Promise<Partial<User> | null> {
+  async getUserByEmailOrPhone(
+    username: string,
+    options?: { email?: string; phoneNumber?: string },
+  ): Promise<Partial<User> | null> {
     const user = await this.userModel.findOne(
       {
-        $or: [{ email: username }, { phoneNumber: username }],
+        $or: [{ email: options?.email || username }, { phoneNumber: options?.phoneNumber || username }],
+        role: { $ne: UserRole.ADMIN },
         disabled: false,
         deleted: false,
       },
@@ -35,7 +43,7 @@ export class UserService {
   }
 
   async createUserSudo(data: User): Promise<UserDocument> {
-    return this.userModel.create(data);
+    return (await this.userModel.create(data)).toJSON();
   }
 
   async updateUserSudo(id: string, data: Partial<User>): Promise<UserDocument | null> {
@@ -48,7 +56,7 @@ export class UserService {
     delete data.role;
 
     const user = await this.userModel.findOneAndUpdate(
-      { _id: new Types.ObjectId(id), role: UserRole.USER, disabled: false, deleted: false },
+      { _id: new mongoose.Types.ObjectId(id), role: UserRole.USER, disabled: false, deleted: false },
       { $set: data },
       { new: true, projection: this.projection },
     );
@@ -57,14 +65,14 @@ export class UserService {
 
   async deleteUserSudo(id: string): Promise<UserDocument | null> {
     return this.userModel.findOneAndUpdate(
-      { _id: new mongoose.Types.ObjectId(id), role: { $ne: UserRole.ADMIN } },
+      { _id: new mongoose.Types.ObjectId(id), role: { $ne: UserRole.ADMIN }, deleted: { $ne: true } },
       { $set: { deleted: true } },
       { new: true, projection: this.projection },
     );
   }
 
   async getUserByIdSudo(id: string): Promise<UserDocument | null> {
-    return this.userModel.findOne({ _id: new Types.ObjectId(id), role: { $ne: UserRole.ADMIN } });
+    return this.userModel.findOne({ _id: new Types.ObjectId(id), role: { $ne: UserRole.ADMIN } }).lean();
   }
 
   async getUserById(id: string): Promise<Partial<User> | null> {
@@ -76,10 +84,9 @@ export class UserService {
   }
 
   async getInfluencerById(id: string): Promise<Partial<User> | null> {
-    const user = await this.userModel.findOne(
-      { _id: new Types.ObjectId(id), role: UserRole.INFLUENCER, disabled: false, deleted: false },
-      this.projection,
-    );
+    const user = await this.userModel
+      .findOne({ _id: new Types.ObjectId(id), role: UserRole.INFLUENCER, disabled: false, deleted: false }, this.projection)
+      .lean();
     return this.toUserSafe(user);
   }
 

@@ -3,6 +3,7 @@ import { AppModule } from './app.module';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { ValidationPipe } from '@nestjs/common';
+import { RolesGuard } from './common/guards/role.guard';
 
 const swaggerConfig = new DocumentBuilder()
   .setTitle('Influencer App API')
@@ -28,7 +29,7 @@ async function bootstrap() {
   SwaggerModule.setup('api', app, document, { swaggerOptions: { persistAuthorization: true } });
 
   const reflector = app.get(Reflector);
-  app.useGlobalGuards(new JwtAuthGuard(reflector));
+  app.useGlobalGuards(new JwtAuthGuard(reflector), new RolesGuard(reflector));
 
   app.useGlobalPipes(
     new ValidationPipe({

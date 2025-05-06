@@ -1,4 +1,4 @@
-import { Controller, Delete, Get, Param, Post, Put, Body, Req, ForbiddenException } from '@nestjs/common';
+import { Controller, Delete, Get, Param, Post, Put, Body, Req, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { UserService } from './user.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UserRole } from './user.schema';
@@ -23,6 +23,12 @@ export class UserController {
   @Roles(UserRole.ADMIN)
   async createUser(@Body() reqData: CreateUserDto) {
     // Implement user creation logic
+    const existingUser = await this.usersService.getUserByEmailOrPhoneSudo(reqData.email || reqData.phoneNumber || '');
+
+    if (existingUser) {
+      throw new ForbiddenException('Email or phone already exists');
+    }
+
     const password = await this.authService.createPasswordHash(reqData.password);
     const user = await this.usersService.createUserSudo({ ...reqData, role: UserRole.USER, password });
     return user;
@@ -40,6 +46,10 @@ export class UserController {
       password,
       category: reqData?.category as unknown as mongoose.Types.ObjectId[],
     });
+
+    delete user.password;
+    delete user.meta;
+
     return user;
   }
 
@@ -63,10 +73,12 @@ export class UserController {
   @ApiOperation({ summary: 'Delete user by ID (Admin only)' })
   @ApiParam({ name: 'userId', description: 'User ID' })
   @Delete(':userId')
-  deleteUser(@Param('userId') userId: string, @Req() req: Request) {
-    if (req.user?.userId != userId || req.user?.role != UserRole.ADMIN) {
+  async deleteUser(@Param('userId') userId: string, @Req() req: Request) {
+    if (req.user?.userId != userId && req.user?.role != UserRole.ADMIN) {
       throw new ForbiddenException('Unauthorized to delete this user');
     }
-    return this.usersService.deleteUserSudo(userId);
+    const user = await this.usersService.deleteUserSudo(userId);
+    if (!user) throw new NotFoundException('User not found');
+    return user;
   }
 }

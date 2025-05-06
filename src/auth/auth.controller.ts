@@ -7,6 +7,7 @@ import {
   Res,
   UnauthorizedException,
   NotFoundException,
+  InternalServerErrorException,
 } from '@nestjs/common';
 import { SigninDto } from './dto/signin.dto';
 import { AuthService } from './auth.service';
@@ -103,10 +104,14 @@ export class AuthController {
       throw new BadRequestException('Email & Password is required');
     }
 
-    const existingUser = await this.userService.getUserByEmailOrPhoneSudo(reqData?.email || reqData?.phoneNumber || '');
+    const existingUser = await this.userService.getUserByEmailOrPhoneSudo('', {
+      email: reqData?.email,
+      phoneNumber: reqData?.phoneNumber,
+    });
 
-    if (reqData?.email && existingUser) throw new BadRequestException('User with email already exists');
-    if (reqData?.phoneNumber && existingUser) throw new BadRequestException('User with phone number exits');
+    if (reqData?.email == existingUser?.email) throw new BadRequestException("Can't create account with this email");
+    if (reqData?.phoneNumber == existingUser?.phoneNumber)
+      throw new BadRequestException("Can't create account with this phone number");
     if (existingUser) throw new BadRequestException('User already exits');
 
     const password = await this.authService.createPasswordHash(reqData?.password);
@@ -128,6 +133,8 @@ export class AuthController {
 
       meta.verificationCode = otp;
       meta.verificationCodeExpires = verificationCodeExpires;
+
+      console.log(meta);
 
       await this.userService.updateUser(newUser?._id + '', { meta });
 
@@ -181,6 +188,7 @@ export class AuthController {
     const verifiedUser = await this.userService.updateUser(userId, { meta });
 
     delete verifiedUser?.password;
+    delete verifiedUser?.meta;
 
     const accessToken = await this.authService.generateJwtAccessToken(userData);
     const refreshToken = await this.authService.generateJwtRefreshToken(userData);
@@ -214,10 +222,12 @@ export class AuthController {
     // Hash the password before saving
     const hashedPassword = await this.authService.createPasswordHash(password);
 
-    await this.userService.updateUser(userId, {
+    const updated = await this.userService.updateUserSudo(userId, {
       password: hashedPassword,
       meta: { ...user?.meta, welcomeMailWithPasswordSent: true, welcomeMailWithPasswordSentAt: new Date() },
     });
+
+    if (!updated) throw new InternalServerErrorException('Failed to update user');
 
     // Send influencer credentials via email or SMS
     this.emailService.sendCredentialsEmail(user.email!, password);

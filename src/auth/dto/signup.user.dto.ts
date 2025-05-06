@@ -1,42 +1,5 @@
-import {
-  IsEmail,
-  IsNotEmpty,
-  IsOptional,
-  IsPhoneNumber,
-  IsString,
-  IsBoolean,
-  IsDateString,
-  ValidateNested,
-} from 'class-validator';
-import { Type } from 'class-transformer';
+import { IsEmail, IsNotEmpty, IsOptional, IsPhoneNumber, IsString } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-
-class MetaDto {
-  @ApiPropertyOptional({ description: 'Whether the user is verified' })
-  @IsBoolean()
-  @IsOptional()
-  isVerified?: boolean;
-
-  @ApiPropertyOptional({ description: 'OTP or verification code' })
-  @IsString()
-  @IsOptional()
-  verificationCode?: string;
-
-  @ApiPropertyOptional({ description: 'Expiration date for the verification code', type: String, format: 'date-time' })
-  @IsDateString()
-  @IsOptional()
-  verificationCodeExpires?: Date;
-
-  @ApiPropertyOptional({ description: 'Whether welcome email with password was sent' })
-  @IsBoolean()
-  @IsOptional()
-  welcomeMailWithPasswordSent?: boolean;
-
-  @ApiPropertyOptional({ description: 'Timestamp when welcome mail was sent', type: String, format: 'date-time' })
-  @IsDateString()
-  @IsOptional()
-  welcomeMailWithPasswordSentAt?: Date;
-}
 
 export class SignupUserDto {
   @ApiProperty({ description: 'User email address', example: 'user@example.com' })
@@ -61,10 +24,4 @@ export class SignupUserDto {
   @IsString()
   @IsOptional()
   profilePicture?: string;
-
-  @ApiPropertyOptional({ type: MetaDto, description: 'Meta information like OTP, email status' })
-  @ValidateNested()
-  @Type(() => MetaDto)
-  @IsOptional()
-  meta?: MetaDto;
 }

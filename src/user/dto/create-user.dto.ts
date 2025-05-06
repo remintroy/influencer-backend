@@ -29,5 +29,6 @@ export class CreateUserDto {
 
   @ApiPropertyOptional({ description: 'Account Type', example: UserAccountType.INDIVIDUAL })
   @IsEnum(UserAccountType)
+  @IsOptional()
   accountType?: UserAccountType;
 }
