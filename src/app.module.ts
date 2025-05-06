@@ -6,6 +6,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthModule } from './auth/auth.module';
 import { NotificationModule } from './notification/notification.module';
+import { JwtStrategy } from './auth/strategy/jwt.strategy';
 
 @Module({
   imports: [
@@ -22,6 +23,6 @@ import { NotificationModule } from './notification/notification.module';
     NotificationModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, JwtStrategy],
 })
 export class AppModule {}

@@ -23,6 +23,7 @@ export enum InfluencerPlatforms {
   LinkedIn = 'LinkedIn',
   Other = 'Other',
 }
+
 @Schema({ timestamps: true })
 export class User {
   _id?: Types.ObjectId | string;
@@ -38,6 +39,12 @@ export class User {
 
   @Prop({ minlength: 6 })
   password?: string;
+
+  @Prop({ default: false })
+  disabled?: boolean;
+
+  @Prop({ default: false })
+  deleted?: boolean;
 
   @Prop()
   name?: string;

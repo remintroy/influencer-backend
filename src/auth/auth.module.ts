@@ -18,7 +18,12 @@ import { UserService } from 'src/user/user.service';
       provide: 'JWT_ACCESS_SERVICE',
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => {
-        return new JwtService({ secret: configService.get('ACCESS_TOKEN_SECRET'), signOptions: { expiresIn: '15m' } });
+        return new JwtService({
+          secret: configService.get('ACCESS_TOKEN_SECRET'),
+          signOptions: {
+            expiresIn: configService.get('NODE_ENV') == 'dev' ? configService.get('ACCESS_TOKEN_EXPIRES_IN') : '15m',
+          },
+        });
       },
     },
     {
@@ -29,5 +34,6 @@ import { UserService } from 'src/user/user.service';
       },
     },
   ],
+  exports: [AuthService],
 })
 export class AuthModule {}

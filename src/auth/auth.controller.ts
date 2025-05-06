@@ -11,15 +11,17 @@ import {
 import { SigninDto } from './dto/signin.dto';
 import { AuthService } from './auth.service';
 import { Response } from 'express';
-import { ApiBody, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { SignupUserDto } from './dto/signup.user.dto';
 import { UserRole } from 'src/user/user.schema';
 import { SmsService } from 'src/notification/sms/sms.service';
 import { EmailService } from 'src/notification/email/email.service';
 import { UserService } from 'src/user/user.service';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
+import { Public } from 'src/common/decorators/public.decorator';
+import { Roles } from 'src/common/decorators/role.decorator';
 
-@ApiTags('Auth')
+@ApiTags('Authentication')
 @Controller('auth')
 export class AuthController {
   constructor(
@@ -30,6 +32,11 @@ export class AuthController {
   ) {}
 
   @Post('signin-common')
+  @Public()
+  @ApiOperation({
+    summary: 'Sign in user (email or phone)',
+    description: 'Allows a users and influencers to sign in using either email or phone and password.',
+  })
   @ApiBody({ type: SigninDto })
   async signIn(@Body() credentials: SigninDto, @Res({ passthrough: true }) res: Response) {
     // Validate sign-in request
@@ -38,7 +45,7 @@ export class AuthController {
     }
 
     // Implement user sign-in logic
-    const user = await this.userService.getUserByEmailOrPhone(credentials.username);
+    const user = await this.userService.getUserByEmailOrPhoneSudo(credentials.username);
 
     if (!user || !user.password) {
       // User not found or password not provided
@@ -85,7 +92,9 @@ export class AuthController {
   }
 
   @Post('signup-user')
+  @Public()
   @ApiBody({ type: SignupUserDto })
+  @ApiOperation({ summary: 'User Sign-up', description: 'Registers a new user and sends OTP for verification.' })
   async signUp(@Body() reqData: SignupUserDto, @Res({ passthrough: true }) res: Response) {
     // Validate sign-in request
 
@@ -94,14 +103,14 @@ export class AuthController {
       throw new BadRequestException('Email & Password is required');
     }
 
-    const existingUser = await this.userService.getUserByEmailOrPhone(reqData?.email || reqData?.phoneNumber || '');
+    const existingUser = await this.userService.getUserByEmailOrPhoneSudo(reqData?.email || reqData?.phoneNumber || '');
 
     if (reqData?.email && existingUser) throw new BadRequestException('User with email already exists');
     if (reqData?.phoneNumber && existingUser) throw new BadRequestException('User with phone number exits');
     if (existingUser) throw new BadRequestException('User already exits');
 
     const password = await this.authService.createPasswordHash(reqData?.password);
-    const newUser = await this.userService.createUser({
+    const newUser = await this.userService.createUserSudo({
       email: reqData?.email,
       role: UserRole.USER,
       phoneNumber: reqData?.phoneNumber,
@@ -147,13 +156,15 @@ export class AuthController {
   }
 
   @Post('verify-otp/:userId')
+  @Public()
+  @ApiOperation({ summary: 'Verify OTP', description: 'Verifies the OTP sent to the user during registration.' })
   @ApiBody({ type: VerifyOtpDto })
   async verifyOtp(@Param('userId') userId: string, @Body() reqData: VerifyOtpDto, @Res({ passthrough: true }) res: Response) {
     const otp = reqData?.otp;
 
     if (!otp) throw new BadRequestException('Otp is required');
 
-    const userData = await this.userService.getUserById(userId);
+    const userData = await this.userService.getUserByIdSudo(userId);
 
     if (!userData) throw new NotFoundException('User not found');
 
@@ -183,5 +194,34 @@ export class AuthController {
     });
 
     return { ...verifiedUser, accessToken, refreshToken };
+  }
+
+  @ApiBearerAuth('access-token')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({
+    summary: 'Send credentials to influencer (Admin only)',
+    description: 'Admin only: Sends temporary login credentials to influencer via email.',
+  })
+  @Post('influencer/send-credentials/:userId')
+  async sendCredentialsToInfluencer(@Param('userId') userId: string) {
+    const user = await this.userService.getInfluencerById(userId);
+
+    if (!user) throw new NotFoundException('User not found');
+
+    // Generate a random password for the influencer
+    const password = Math.random().toString(36).slice(-8);
+
+    // Hash the password before saving
+    const hashedPassword = await this.authService.createPasswordHash(password);
+
+    await this.userService.updateUser(userId, {
+      password: hashedPassword,
+      meta: { ...user?.meta, welcomeMailWithPasswordSent: true, welcomeMailWithPasswordSentAt: new Date() },
+    });
+
+    // Send influencer credentials via email or SMS
+    this.emailService.sendCredentialsEmail(user.email!, password);
+
+    return { success: true, message: 'Credentials sent successfully' };
   }
 }
