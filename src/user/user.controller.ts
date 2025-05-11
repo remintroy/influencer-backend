@@ -1,7 +1,7 @@
 import { Controller, Delete, Get, Param, Post, Put, Body, Req, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { UserService } from './user.service';
 import { CreateUserDto } from './dto/create-user.dto';
-import { UserRole } from './user.schema';
+import { UserRole } from './schemas/user.schema';
 import { AuthService } from 'src/auth/auth.service';
 import { CreateInfluencerDto } from './dto/create-influencer.dto';
 import mongoose from 'mongoose';

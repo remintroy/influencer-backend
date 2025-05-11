@@ -24,4 +24,12 @@ export class SignupUserDto {
   @IsString()
   @IsOptional()
   profilePicture?: string;
+
+  @IsString()
+  @IsOptional()
+  deviceInfo?: string;
+
+  @IsString()
+  @IsOptional()
+  ipAddress?: string;
 }

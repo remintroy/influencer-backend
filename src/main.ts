@@ -4,6 +4,7 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { ValidationPipe } from '@nestjs/common';
 import { RolesGuard } from './common/guards/role.guard';
+import * as cookieParser from 'cookie-parser';
 
 const swaggerConfig = new DocumentBuilder()
   .setTitle('Influencer App API')
@@ -24,6 +25,8 @@ const swaggerConfig = new DocumentBuilder()
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.setGlobalPrefix('api/v1');
+
+  app.use(cookieParser());
 
   const document = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup('api', app, document, { swaggerOptions: { persistAuthorization: true } });

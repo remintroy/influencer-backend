@@ -1,15 +1,20 @@
 import { Module } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { MongooseModule } from '@nestjs/mongoose';
-import { User, UserSchema } from 'src/user/user.schema';
+import { User, UserSchema } from 'src/user/schemas/user.schema';
 import { AuthController } from './auth.controller';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { NotificationModule } from 'src/notification/notification.module';
 import { UserService } from 'src/user/user.service';
+import { RefreshToken, RefreshTokenSchema } from './schemas/refresh-token.schema';
 
 @Module({
-  imports: [NotificationModule, MongooseModule.forFeature([{ name: User.name, schema: UserSchema }])],
+  imports: [
+    NotificationModule,
+    MongooseModule.forFeature([{ name: User.name, schema: UserSchema }]),
+    MongooseModule.forFeature([{ name: RefreshToken.name, schema: RefreshTokenSchema }]),
+  ],
   controllers: [AuthController],
   providers: [
     AuthService,

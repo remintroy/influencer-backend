@@ -1,7 +1,7 @@
 // roles.guard.ts
 import { CanActivate, ExecutionContext, Injectable, UnauthorizedException, ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { UserRole } from 'src/user/user.schema';
+import { UserRole } from 'src/user/schemas/user.schema';
 import { ROLES_KEY } from '../decorators/role.decorator';
 
 @Injectable()

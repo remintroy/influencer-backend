@@ -2,7 +2,7 @@ import { IsArray, IsEnum, IsMongoId, IsNumber, IsOptional, IsString, ValidateNes
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { CreateUserDto } from './create-user.dto';
 import { Type } from 'class-transformer';
-import { InfluencerPlatforms } from '../user.schema';
+import { InfluencerPlatforms } from '../schemas/user.schema';
 
 class SocialMediaEntry {
   @ApiProperty({

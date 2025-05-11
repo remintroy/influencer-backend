@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import mongoose, { Model, Types } from 'mongoose';
-import { User, UserDocument, UserRole } from './user.schema';
+import { User, UserDocument, UserRole } from './schemas/user.schema';
 
 @Injectable()
 export class UserService {
@@ -56,7 +56,7 @@ export class UserService {
     delete data.role;
 
     const user = await this.userModel.findOneAndUpdate(
-      { _id: new mongoose.Types.ObjectId(id), role: UserRole.USER, disabled: false, deleted: false },
+      { _id: new mongoose.Types.ObjectId(id), role: { $ne: UserRole.ADMIN }, disabled: false, deleted: false },
       { $set: data },
       { new: true, projection: this.projection },
     );
@@ -72,7 +72,7 @@ export class UserService {
   }
 
   async getUserByIdSudo(id: string): Promise<UserDocument | null> {
-    return this.userModel.findOne({ _id: new Types.ObjectId(id), role: { $ne: UserRole.ADMIN } }).lean();
+    return this.userModel.findOne({ _id: new Types.ObjectId(id) }).lean();
   }
 
   async getUserById(id: string): Promise<Partial<User> | null> {
