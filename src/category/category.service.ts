@@ -5,6 +5,13 @@ import { Category, CategoryDocument } from './schemas/category.schema';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 
+export interface CategoryPaginationResponse {
+  totalDocs: number;
+  page: number;
+  limit: number;
+  docs: Partial<Category>[];
+}
+
 @Injectable()
 export class CategoryService {
   constructor(@InjectModel(Category.name) private categoryModel: Model<CategoryDocument>) {}
@@ -14,18 +21,29 @@ export class CategoryService {
     return createdCategory.save();
   }
 
-  async findAll({ page, limit }: { page?: number; limit?: number }): Promise<Category[]> {
-    if (page || limit) {
-      limit = limit ? limit : 10;
-      page = page ? page - 1 : 0;
-      return this.categoryModel
-        .find()
-        .skip(page * limit)
-        .limit(limit)
-        .exec();
-    }
+  async findAll({ page = 1, limit = 10 }: { page?: number; limit?: number }): Promise<CategoryPaginationResponse> {
+    const skip = (page - 1) * limit;
 
-    return this.categoryModel.find().exec();
+    const result = await this.categoryModel.aggregate([
+      { $match: { deleted: { $ne: false } } },
+      { $sort: { name: 1, createdAt: 1 } },
+      {
+        $facet: {
+          metadata: [{ $count: 'totalDocs' }],
+          data: [{ $skip: skip }, { $limit: limit }],
+        },
+      },
+      {
+        $project: {
+          totalDocs: { $ifNull: [{ $arrayElemAt: ['$metadata.totalDocs', 0] }, 0] },
+          page: { $literal: page },
+          limit: { $literal: limit },
+          docs: '$data',
+        },
+      },
+    ]);
+
+    return result[0];
   }
 
   async findOne(id: string): Promise<Category | null> {

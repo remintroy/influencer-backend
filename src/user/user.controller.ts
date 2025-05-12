@@ -1,4 +1,16 @@
-import { Controller, Delete, Get, Param, Post, Put, Body, Req, ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Post,
+  Put,
+  Body,
+  Req,
+  ForbiddenException,
+  NotFoundException,
+  Query,
+} from '@nestjs/common';
 import { UserService } from './user.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UserRole } from './schemas/user.schema';
@@ -53,6 +65,18 @@ export class UserController {
     return user;
   }
 
+  @Roles(UserRole.ADMIN)
+  @Get('/list-users')
+  async getAllUsers(@Query('page') page?: number, @Query('limit') limit?: number) {
+    return await this.usersService.getAllUsersSudo({ page, limit, role: UserRole.USER });
+  }
+
+  @Roles(UserRole.ADMIN)
+  @Get('/list-influencers')
+  async getAllInfluencers(@Query('page') page?: number, @Query('limit') limit?: number) {
+    return await this.usersService.getAllUsersSudo({ page, limit, role: UserRole.INFLUENCER });
+  }
+
   @ApiOperation({ summary: 'Get a user by ID' })
   @ApiParam({ name: 'userId', description: 'User ID' })
   @Get(':userId')
@@ -67,6 +91,9 @@ export class UserController {
   @Put(':userId')
   updateUser(@Param('userId') userId: string, @Req() req: Request) {
     const dataToUpdate = req.body;
+    if (req.user?.role == UserRole.USER && req.user?.userId != userId) {
+      throw new ForbiddenException('Unauthorized to update this user');
+    }
     return this.usersService.updateUser(userId, dataToUpdate);
   }
 
