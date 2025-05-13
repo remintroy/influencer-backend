@@ -8,6 +8,7 @@ import { AuthModule } from './auth/auth.module';
 import { NotificationModule } from './notification/notification.module';
 import { JwtStrategy } from './auth/strategy/jwt.strategy';
 import { CategoryModule } from './category/category.module';
+import { S3Module } from './common/s3/s3.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { CategoryModule } from './category/category.module';
     AuthModule,
     NotificationModule,
     CategoryModule,
+    S3Module,
   ],
   controllers: [AppController],
   providers: [AppService, JwtStrategy],
