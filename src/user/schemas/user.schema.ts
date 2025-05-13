@@ -50,7 +50,7 @@ export class User {
   name?: string;
 
   @Prop()
-  profilePicture?: string;
+  profileImage?: string;
 
   @Prop({ unique: true, sparse: true })
   googleId?: string;
@@ -113,14 +113,9 @@ export class User {
   })
   meta?: {
     isVerified?: boolean;
-    verificationCode?: string;
-    verificationCodeExpires?: Date;
     welcomeMailWithPasswordSent?: boolean;
     welcomeMailWithPasswordSentAt?: Date;
   };
-
-  @Prop({ type: Boolean, default: false })
-  welcomeMailWithPasswordSent?: boolean;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

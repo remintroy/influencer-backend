@@ -23,7 +23,7 @@ export class SignupUserDto {
   @ApiPropertyOptional({ description: 'Profile picture URL', example: 'https://example.com/avatar.jpg' })
   @IsString()
   @IsOptional()
-  profilePicture?: string;
+  profileImage?: string;
 
   @IsString()
   @IsOptional()

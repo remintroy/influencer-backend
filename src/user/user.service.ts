@@ -23,7 +23,7 @@ export class UserService {
   // Helper to strip out sensitive fields and return safe user object
   private toUserSafe(user: any): Partial<User> | null {
     if (!user) return null;
-    const { password, __v, ...rest } = user;
+    const { password, __v, ...rest } = user?.toJSON?.() || user;
     return rest;
   }
 

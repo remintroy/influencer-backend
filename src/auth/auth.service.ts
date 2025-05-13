@@ -12,6 +12,7 @@ import { Response } from 'express';
 import { RefreshToken, RefreshTokenDocument } from './schemas/refresh-token.schema';
 import { Model, Types } from 'mongoose';
 import { InjectModel } from '@nestjs/mongoose';
+import { Otp, OtpDocument } from './schemas/otp.schema';
 
 @Injectable()
 export class AuthService {
@@ -22,6 +23,7 @@ export class AuthService {
     private readonly smsService: SmsService,
     private readonly emailService: EmailService,
     @InjectModel(RefreshToken.name) private readonly refreshTokenModel: Model<RefreshTokenDocument>,
+    @InjectModel(Otp.name) private readonly otpModel: Model<OtpDocument>,
   ) {}
 
   private setRefreshTokenCookie(res: Response, refreshToken: string) {
@@ -57,6 +59,13 @@ export class AuthService {
       userAgent: options?.userAgent,
     });
     return token;
+  }
+
+  async generateOtp(userId: string, options?: { userAgent?: string; ipAddress?: string }): Promise<string> {
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    this.otpModel.create({ otp, expiresAt, userId, userAgent: options?.userAgent, ipAddress: options?.ipAddress });
+    return otp;
   }
 
   async verifyJwtAccessToken(token: string) {
@@ -95,19 +104,18 @@ export class AuthService {
     }
 
     if (user?.role == UserRole.USER && !user?.meta?.isVerified) {
-      const otp = Math.floor(100000 + Math.random() * 900000).toString();
-      const verificationCodeExpires = new Date(Date.now() + 10 * 60 * 1000);
+      const otp = await this.generateOtp(user?._id as string, { userAgent });
 
-      const meta = { ...user?.meta };
-      meta.verificationCode = otp;
-      meta.verificationCodeExpires = verificationCodeExpires;
-
-      await this.userService.updateUser(user?._id + '', { meta });
+      await this.userService.updateUser(user?._id + '', { meta: { welcomeMailWithPasswordSent: true } });
 
       if (user?.phoneNumber) await this.smsService.sendOtp(user.phoneNumber!, otp);
       if (user?.email) await this.emailService.sendOtp(user?.email!, otp);
 
-      throw new UnauthorizedException('Account not verified - A OTP has been send to your register email/phoneNumber');
+      throw new UnauthorizedException({
+        error: true,
+        data: { userId: user?._id },
+        message: 'Account not verified - A OTP has been send to your register email/phoneNumber',
+      });
     }
 
     delete user.password;
@@ -149,21 +157,16 @@ export class AuthService {
       email: reqData?.email,
       role: UserRole.USER,
       phoneNumber: reqData?.phoneNumber,
-      profilePicture: reqData?.profilePicture,
+      profileImage: reqData?.profileImage,
       password,
     });
 
     delete newUser.password;
 
     if (newUser?.role == UserRole.USER) {
-      const otp = Math.floor(100000 + Math.random() * 900000).toString();
-      const verificationCodeExpires = new Date(Date.now() + 10 * 60 * 1000);
+      const otp = await this.generateOtp(newUser?._id as string, { userAgent });
 
-      const meta = { ...newUser?.meta };
-      meta.verificationCode = otp;
-      meta.verificationCodeExpires = verificationCodeExpires;
-
-      await this.userService.updateUser(newUser?._id + '', { meta });
+      await this.userService.updateUser(newUser?._id + '', { meta: { welcomeMailWithPasswordSent: true } });
 
       if (newUser?.phoneNumber) await this.smsService.sendOtp(newUser.phoneNumber!, otp);
       if (newUser?.email) await this.emailService.sendOtp(newUser?.email!, otp);
@@ -202,22 +205,19 @@ export class AuthService {
 
     if (userData?.meta?.isVerified) throw new UnauthorizedException('User already verified');
 
-    if (otp != userData?.meta?.verificationCode || new Date(userData?.meta?.verificationCodeExpires as Date) < new Date()) {
+    const optData = await this.otpModel.findOne({ userId: userData?._id, otp });
+
+    if (!optData || new Date(optData?.expiresAt as Date) < new Date()) {
       throw new UnauthorizedException('Invalid Otp or Otp expired');
     }
 
-    const meta = { ...userData?.meta };
-    meta.isVerified = true;
-    meta.verificationCode = '';
-
-    const verifiedUser = await this.userService.updateUser(userId, { meta });
-
-    delete verifiedUser?.password;
-    delete verifiedUser?.meta;
+    const verifiedUser = await this.userService.updateUser(userId, { meta: { isVerified: true } });
 
     if (!userData._id) {
       throw new Error('User ID is undefined');
     }
+
+    await this.otpModel.deleteOne({ userId: userData?._id, otp });
 
     const accessToken = await this.generateJwtAccessToken(userData);
     const refreshToken = await this.generateJwtRefreshToken(userData, {
@@ -242,7 +242,6 @@ export class AuthService {
     const updated = await this.userService.updateUserSudo(userId, {
       password: hashedPassword,
       meta: { ...user?.meta, welcomeMailWithPasswordSent: true, welcomeMailWithPasswordSentAt: new Date() },
-      welcomeMailWithPasswordSent: true,
     });
 
     if (!updated) throw new Error('Failed to update user');

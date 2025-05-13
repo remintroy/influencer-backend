@@ -8,12 +8,14 @@ import { ConfigService } from '@nestjs/config';
 import { NotificationModule } from 'src/notification/notification.module';
 import { UserService } from 'src/user/user.service';
 import { RefreshToken, RefreshTokenSchema } from './schemas/refresh-token.schema';
+import { OptSchema, Otp } from './schemas/otp.schema';
 
 @Module({
   imports: [
     NotificationModule,
     MongooseModule.forFeature([{ name: User.name, schema: UserSchema }]),
     MongooseModule.forFeature([{ name: RefreshToken.name, schema: RefreshTokenSchema }]),
+    MongooseModule.forFeature([{ name: Otp.name, schema: OptSchema }]),
   ],
   controllers: [AuthController],
   providers: [
