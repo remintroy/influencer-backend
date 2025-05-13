@@ -27,6 +27,7 @@ async function bootstrap() {
   app.setGlobalPrefix('api/v1');
 
   app.use(cookieParser());
+  app.enableCors({ origin: '*', credentials: true });
 
   const document = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup('api', app, document, { swaggerOptions: { persistAuthorization: true } });
