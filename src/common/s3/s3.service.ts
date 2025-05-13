@@ -12,7 +12,7 @@ export class S3Service {
       region: configService.get('AWS_REGION'),
       credentials: {
         accessKeyId: configService.get('AWS_ACCESS_KEY_ID') || '',
-        secretAccessKey: configService.get('AWS_SECRET_ACCESS_KEY') || '',
+        secretAccessKey: configService.get('AWS_SECRET_KEY') || '',
       },
     });
   }
@@ -21,7 +21,7 @@ export class S3Service {
     const key = `${Date.now()}-${fileName?.slice?.(0, 20) || ''}`;
 
     const command = new PutObjectCommand({
-      Bucket: process.env.AWS_BUCKET_NAME,
+      Bucket: this.configService.get('AWS_BUCKET_NAME'),
       Key: key,
       ContentType: fileType || 'application/octet-stream',
     });
