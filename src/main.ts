@@ -5,6 +5,7 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { ValidationPipe } from '@nestjs/common';
 import { RolesGuard } from './common/guards/role.guard';
 import * as cookieParser from 'cookie-parser';
+import * as morgan from 'morgan';
 
 const swaggerConfig = new DocumentBuilder()
   .setTitle('Influencer App API')
@@ -28,6 +29,7 @@ async function bootstrap() {
 
   app.use(cookieParser());
   app.enableCors({ origin: '*', credentials: true });
+  app.use(morgan('tiny'));
 
   const document = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup('api', app, document, { swaggerOptions: { persistAuthorization: true } });
