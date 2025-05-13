@@ -98,7 +98,10 @@ export class UserService {
    */
   async createUserSudo(data: User): Promise<UserDocument> {
     const createdUser = await this.userModel.create(data);
-    return createdUser.toJSON();
+    const dataOut = createdUser.toJSON();
+    delete dataOut.password;
+    delete dataOut.meta;
+    return dataOut;
   }
 
   /**
