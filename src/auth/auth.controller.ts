@@ -10,6 +10,7 @@ import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { Public } from 'src/common/decorators/public.decorator';
 import { Roles } from 'src/common/decorators/role.decorator';
 import { UserRole } from 'src/user/schemas/user.schema';
+import { GoogleLoginDto } from './dto/google-login.dto';
 
 @ApiTags('Authentication')
 @Controller('auth')
@@ -20,8 +21,10 @@ export class AuthController {
 
   @Post('google-auth')
   @Public()
-  async googleLogin(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
-    const idToken = req.body.idToken;
+  @ApiOperation({ summary: 'Google OAuth Login' })
+  @ApiBody({ type: GoogleLoginDto })
+  async googleLogin(@Body() reqData: GoogleLoginDto, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    const idToken = reqData.idToken;
     const userAgent = req.headers['user-agent'];
     return this.authService.googleAuth(idToken, res, userAgent);
   }
