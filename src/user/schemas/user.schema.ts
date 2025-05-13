@@ -100,7 +100,9 @@ export class User {
   @Prop([String])
   videos?: string[];
 
-  // ✅ Moved all system-level info under 'meta'
+  @Prop({ type: String, required: true })
+  gender?: string;
+
   @Prop({
     type: {
       isVerified: { type: Boolean, default: false },

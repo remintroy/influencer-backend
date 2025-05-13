@@ -18,6 +18,14 @@ export class AuthController {
 
   // ──────────────── Public Auth Endpoints ────────────────
 
+  @Post('google-auth')
+  @Public()
+  async googleLogin(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    const idToken = req.body.idToken;
+    const userAgent = req.headers['user-agent'];
+    return this.authService.googleAuth(idToken, res, userAgent);
+  }
+
   @Post('signin')
   @Public()
   @ApiOperation({

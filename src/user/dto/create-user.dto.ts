@@ -1,4 +1,4 @@
-import { IsEmail, IsEnum, IsNotEmpty, IsOptional, IsPhoneNumber, IsString, IsUrl, MinLength } from 'class-validator';
+import { IsEmail, IsEnum, IsMobilePhone, IsOptional, IsString, IsUrl, MinLength } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { UserAccountType } from '../schemas/user.schema';
 
@@ -8,13 +8,13 @@ export class CreateUserDto {
   email: string;
 
   @ApiPropertyOptional({ description: 'Phone number with country code', example: '+919999999999' })
-  @IsPhoneNumber()
+  @IsMobilePhone()
   @IsOptional()
   phoneNumber?: string;
 
   @ApiProperty({ description: 'User password', example: 'securePassword123!' })
-  @IsNotEmpty()
   @MinLength(6, { message: 'Password must be at least 8 characters long' })
+  @IsOptional()
   password: string;
 
   @ApiPropertyOptional({ description: 'Full name of the user', example: 'John Doe' })
@@ -25,10 +25,15 @@ export class CreateUserDto {
   @ApiPropertyOptional({ description: 'Profile picture URL', example: 'https://example.com/avatar.jpg' })
   @IsUrl()
   @IsOptional()
-  profilePicture?: string;
+  profileImage?: string;
 
   @ApiPropertyOptional({ description: 'Account Type', example: UserAccountType.INDIVIDUAL })
   @IsEnum(UserAccountType)
   @IsOptional()
   accountType?: UserAccountType;
+
+  @ApiPropertyOptional({ description: 'Gender of user', example: 'male' })
+  @IsString()
+  @IsOptional()
+  gender?: string;
 }

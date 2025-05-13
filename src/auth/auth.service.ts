@@ -13,6 +13,7 @@ import { RefreshToken, RefreshTokenDocument } from './schemas/refresh-token.sche
 import { Model, Types } from 'mongoose';
 import { InjectModel } from '@nestjs/mongoose';
 import { Otp, OtpDocument } from './schemas/otp.schema';
+import { GoogleAuthService } from './google-auth/google-auth.service';
 
 @Injectable()
 export class AuthService {
@@ -22,6 +23,7 @@ export class AuthService {
     private readonly userService: UserService,
     private readonly smsService: SmsService,
     private readonly emailService: EmailService,
+    private readonly googleAuthService: GoogleAuthService,
     @InjectModel(RefreshToken.name) private readonly refreshTokenModel: Model<RefreshTokenDocument>,
     @InjectModel(Otp.name) private readonly otpModel: Model<OtpDocument>,
   ) {}
@@ -87,6 +89,42 @@ export class AuthService {
   }
 
   // Main
+
+  async googleAuth(idToken: string, res: Response, userAgent?: string) {
+    if (!idToken) throw new BadRequestException('Id token is required');
+    const { email, name, sub: googleId, picture } = await this.googleAuthService.verifyGoogleToken(idToken);
+
+    let userInDb = await this.userService.getUserByEmailOrPhoneSudo('', { email });
+
+    if (!userInDb) {
+      userInDb = await this.userService.createUserSudo({
+        email: email as string,
+        name,
+        googleId,
+        profileImage: picture,
+        role: UserRole.USER,
+      });
+      throw new UnauthorizedException('User not found');
+    }
+
+    if (userInDb?.googleId !== googleId) {
+      throw new UnauthorizedException('Google account already linked with another user');
+    }
+
+    if (userInDb && !userInDb?.googleId) {
+      await this.userService.updateUser(userInDb?._id as string, { googleId: userInDb?.googleId });
+    }
+
+    const accessToken = await this.generateJwtAccessToken(userInDb);
+    const refreshToken = await this.generateJwtRefreshToken(userInDb, { userAgent });
+
+    this.setRefreshTokenCookie(res, refreshToken);
+
+    delete userInDb.password;
+    delete userInDb.meta;
+
+    return { ...userInDb, accessToken, refreshToken };
+  }
 
   async signIn(credentials: SigninDto, res: Response, userAgent?: string) {
     if (!credentials?.password || !credentials?.username) {

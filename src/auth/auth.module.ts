@@ -9,6 +9,7 @@ import { NotificationModule } from 'src/notification/notification.module';
 import { UserService } from 'src/user/user.service';
 import { RefreshToken, RefreshTokenSchema } from './schemas/refresh-token.schema';
 import { OptSchema, Otp } from './schemas/otp.schema';
+import { GoogleAuthService } from './google-auth/google-auth.service';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { OptSchema, Otp } from './schemas/otp.schema';
         return new JwtService({ secret: configService.get('REFRESH_TOKEN_SECRET'), signOptions: { expiresIn: '365d' } });
       },
     },
+    GoogleAuthService,
   ],
   exports: [AuthService],
 })
