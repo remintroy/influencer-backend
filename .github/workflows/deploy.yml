@@ -22,7 +22,7 @@ jobs:
 
       - name: Copy build files
         run: |
-          scp -o StrictHostKeyChecking=accept-new -i "~/secret.pem" -r dist  ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:nest-backend/dist/
+          scp -o StrictHostKeyChecking=accept-new -i "~/secret.pem" -r dist  ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:nest-backend/
           scp -i "~/secret.pem" package*.json pnpm*.yaml  ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:nest-backend/
 
       - name: SSH into EC2 instance and restarting server
