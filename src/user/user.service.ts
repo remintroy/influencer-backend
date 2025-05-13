@@ -123,7 +123,7 @@ export class UserService {
     if (!this.isValidObjectId(id)) throw new NotFoundException('Invalid user ID');
 
     const user = await this.userModel.findOneAndUpdate(
-      { _id: new mongoose.Types.ObjectId(id), role: { $ne: UserRole.ADMIN }, ...this.defaultQuery },
+      { _id: new mongoose.Types.ObjectId(id), role: { $ne: UserRole.ADMIN }, deleted: false },
       { $set: data },
       { new: true, projection: this.projection },
     );
