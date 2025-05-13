@@ -154,7 +154,7 @@ export class UserService {
    */
   async getUserById(id: string): Promise<Partial<User> | null> {
     const user = await this.userModel.findOne(
-      { _id: new Types.ObjectId(id), role: UserRole.USER, ...this.defaultQuery },
+      { _id: new Types.ObjectId(id), role: { $ne: UserRole.ADMIN }, ...this.defaultQuery },
       this.projection,
     );
     return this.toUserSafe(user);
