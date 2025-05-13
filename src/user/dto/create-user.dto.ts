@@ -1,4 +1,4 @@
-import { IsEmail, IsEnum, IsMobilePhone, IsOptional, IsString, IsUrl, MinLength } from 'class-validator';
+import { IsEmail, IsEnum, IsOptional, IsString, IsUrl, MinLength } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { UserAccountType } from '../schemas/user.schema';
 
@@ -8,7 +8,6 @@ export class CreateUserDto {
   email: string;
 
   @ApiPropertyOptional({ description: 'Phone number with country code', example: '+919999999999' })
-  @IsMobilePhone()
   @IsOptional()
   phoneNumber?: string;
 
