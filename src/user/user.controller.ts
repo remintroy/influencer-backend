@@ -51,13 +51,16 @@ export class UserController {
   @Roles(UserRole.ADMIN)
   async createInfluencer(@Body() reqData: CreateInfluencerDto) {
     // Implement influencer creation logic
-    const password = await this.authService.createPasswordHash(reqData.password);
-    const user = await this.usersService.createUserSudo({
+
+    const dataToSave = {
       ...reqData,
       role: UserRole.INFLUENCER,
-      password,
       category: reqData?.category as unknown as mongoose.Types.ObjectId[],
-    });
+    };
+
+    if (reqData?.password) dataToSave.password = await this.authService.createPasswordHash(reqData.password);
+
+    const user = await this.usersService.createUserSudo(dataToSave);
 
     delete user.password;
     delete user.meta;
