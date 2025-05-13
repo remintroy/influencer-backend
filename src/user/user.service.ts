@@ -150,17 +150,20 @@ export class UserService {
    */
   async getUserByIdSudo(id: string): Promise<UserDocument | null> {
     if (!this.isValidObjectId(id)) throw new NotFoundException('Invalid user ID');
-    return this.userModel.findOne({ _id: new Types.ObjectId(id) }).lean();
+    return this.userModel
+      .findOne({ _id: new Types.ObjectId(id) })
+      .populate('category')
+      .lean();
   }
 
   /**
    * Fetches an active user with role **USER**.
    */
   async getUserById(id: string): Promise<Partial<User> | null> {
-    const user = await this.userModel.findOne(
-      { _id: new Types.ObjectId(id), role: { $ne: UserRole.ADMIN }, ...this.defaultQuery },
-      this.projection,
-    );
+    const user = await this.userModel
+      .findOne({ _id: new Types.ObjectId(id), role: { $ne: UserRole.ADMIN }, ...this.defaultQuery }, this.projection)
+      .populate('category');
+
     return this.toUserSafe(user);
   }
 

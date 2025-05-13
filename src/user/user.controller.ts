@@ -85,6 +85,7 @@ export class UserController {
   @Get(':userId')
   async getUserById(@Param('userId') userId: string) {
     const userDataFromDb = await this.usersService.getUserById(userId);
+    if (!userDataFromDb) throw new NotFoundException('User not found');
     return userDataFromDb;
     // Implement user retrieval logic by ID
   }
