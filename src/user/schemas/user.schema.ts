@@ -118,6 +118,9 @@ export class User {
     welcomeMailWithPasswordSent?: boolean;
     welcomeMailWithPasswordSentAt?: Date;
   };
+
+  @Prop({ type: Boolean, default: false })
+  welcomeMailWithPasswordSent?: boolean;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

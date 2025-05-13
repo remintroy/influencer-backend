@@ -242,6 +242,7 @@ export class AuthService {
     const updated = await this.userService.updateUserSudo(userId, {
       password: hashedPassword,
       meta: { ...user?.meta, welcomeMailWithPasswordSent: true, welcomeMailWithPasswordSentAt: new Date() },
+      welcomeMailWithPasswordSent: true,
     });
 
     if (!updated) throw new Error('Failed to update user');
