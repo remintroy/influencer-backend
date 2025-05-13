@@ -26,7 +26,7 @@ import { RefreshToken, RefreshTokenSchema } from './schemas/refresh-token.schema
         return new JwtService({
           secret: configService.get('ACCESS_TOKEN_SECRET'),
           signOptions: {
-            expiresIn: configService.get('NODE_ENV') == 'dev' ? configService.get('ACCESS_TOKEN_EXPIRES_IN') : '15m',
+            expiresIn: configService.get('NODE_ENV') == 'dev' ? configService.get('ACCESS_TOKEN_EXPIRES_IN') : '365d',
           },
         });
       },
