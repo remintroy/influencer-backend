@@ -5,6 +5,7 @@ import { UserAccountType } from '../schemas/user.schema';
 export class CreateUserDto {
   @ApiProperty({ description: 'User email address', example: 'user@example.com' })
   @IsEmail()
+  @IsOptional()
   email: string;
 
   @ApiPropertyOptional({ description: 'Phone number with country code', example: '+919999999999' })

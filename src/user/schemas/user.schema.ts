@@ -82,6 +82,12 @@ export class User {
   @Prop({ type: [{ type: Types.ObjectId, ref: 'Category' }], default: [] })
   category?: Types.ObjectId[];
 
+  @Prop({ type: Number, default: 0 })
+  followers?: number;
+
+  @Prop({ type: Number, default: 0 })
+  following?: number;
+
   @Prop([String])
   tags?: string[];
 

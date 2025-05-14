@@ -151,7 +151,7 @@ export class UserService {
   async getUserByIdSudo(id: string): Promise<UserDocument | null> {
     if (!this.isValidObjectId(id)) throw new NotFoundException('Invalid user ID');
     return this.userModel
-      .findOne({ _id: new Types.ObjectId(id) })
+      .findOne({ _id: new Types.ObjectId(id), deleted: false })
       .populate('category')
       .lean();
   }
@@ -162,6 +162,72 @@ export class UserService {
   async getUserById(id: string): Promise<Partial<User> | null> {
     const user = await this.userModel
       .findOne({ _id: new Types.ObjectId(id), role: { $ne: UserRole.ADMIN }, ...this.defaultQuery }, this.projection)
+      .populate('category');
+
+    return this.toUserSafe(user);
+  }
+
+  async getInfluencerSearchPaginated(
+    search: string,
+    options: { category?: string; platform?: string; page?: number; limit?: number },
+  ): Promise<UserPaginationResponse> {
+    const limit = options?.limit || 10;
+    const page = options?.page || 1;
+
+    let baseQuery: any = {
+      role: UserRole.INFLUENCER,
+    };
+
+    if (search) {
+      baseQuery = {
+        $or: [
+          { name: { $regex: search, $options: 'i' } },
+          { bio: { $regex: search, $options: 'i' } },
+          { tags: { $regex: search, $options: 'i' } },
+          { 'socialMedia.platform': { $regex: search, $options: 'i' } },
+        ],
+      };
+    }
+
+    const userData = await this.userModel.aggregate([
+      { $match: baseQuery },
+      {
+        $match: {
+          ...(options?.category ? { category: new Types.ObjectId(options?.category) } : {}),
+          ...(options?.platform ? { 'socialMedia.platform': options?.platform } : {}),
+        },
+      },
+      { $sort: { name: 1, createdAt: 1 } },
+      { $project: this.projection },
+      {
+        $facet: {
+          metadata: [{ $count: 'totalDocs' }],
+          data: [
+            { $skip: (page - 1) * limit },
+            { $limit: limit },
+            { $lookup: { from: 'categories', localField: 'category', foreignField: '_id', as: 'category' } },
+          ],
+        },
+      },
+      {
+        $project: {
+          totalDocs: { $ifNull: [{ $arrayElemAt: ['$metadata.totalDocs', 0] }, 0] },
+          page: { $literal: page },
+          limit: { $literal: limit },
+          docs: '$data',
+        },
+      },
+    ]);
+
+    return userData?.[0];
+  }
+
+  /**
+   * Fetches an active user with role **USER** for Admin (no filters).
+   */
+  async getUserByIdPreviewSudo(id: string): Promise<Partial<User> | null> {
+    const user = await this.userModel
+      .findOne({ _id: new Types.ObjectId(id), role: { $ne: UserRole.ADMIN }, deleted: { $ne: true } }, this.projection)
       .populate('category');
 
     return this.toUserSafe(user);
