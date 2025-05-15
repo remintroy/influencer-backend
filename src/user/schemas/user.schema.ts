@@ -106,7 +106,7 @@ export class User {
   @Prop([String])
   videos?: string[];
 
-  @Prop({ type: String, required: true })
+  @Prop({ type: String })
   gender?: string;
 
   @Prop({

@@ -4,10 +4,11 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 export class SignupUserDto {
   @ApiProperty({ description: 'User email address', example: 'user@example.com' })
   @IsEmail()
+  @IsOptional()
   email: string;
 
   @ApiPropertyOptional({ description: 'Phone number with country code', example: '+919999999999' })
-  @IsPhoneNumber()
+  // @IsPhoneNumber()
   @IsOptional()
   phoneNumber?: string;
 
@@ -32,4 +33,12 @@ export class SignupUserDto {
   @IsString()
   @IsOptional()
   ipAddress?: string;
+
+  @IsString()
+  @IsOptional()
+  gender: string;
+
+  @IsString()
+  @IsOptional()
+  commercialRegistrationID: string;
 }
