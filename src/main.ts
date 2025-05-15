@@ -64,7 +64,15 @@ async function bootstrap() {
       .setTitle('Influencer Management Platform API')
       .setDescription('API documentation for the Influencer Management Platform')
       .setVersion('1.0')
-      .addBearerAuth()
+      .addBearerAuth({
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+        name: 'Authorization',
+        in: 'header',
+      },
+        'access-token', // This is the name you'll refer to in decorators
+      )
       .addTag('Authentication', 'Authentication related endpoints')
       .addTag('Users', 'User management endpoints')
       .addTag('Categories', 'Category management endpoints')
