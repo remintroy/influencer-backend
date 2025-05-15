@@ -176,6 +176,7 @@ export class UserService {
 
     let baseQuery: any = {
       role: UserRole.INFLUENCER,
+      ...this.defaultQuery,
     };
 
     if (search) {
