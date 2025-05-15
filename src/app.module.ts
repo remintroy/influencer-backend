@@ -9,6 +9,7 @@ import { CategoryModule } from './category/category.module';
 import { NotificationModule } from './notification/notification.module';
 import { validate } from './config/env.validation';
 import { S3Module } from './common/s3/s3.module';
+import { JwtStrategy } from './auth/strategy/jwt.strategy';
 
 /**
  * Root application module
@@ -25,10 +26,6 @@ import { S3Module } from './common/s3/s3.module';
       isGlobal: true,
       validate,
       envFilePath: ['.env', '.env.dev', '.env.production'],
-      // load: [() => ({
-      //   ENABLE_SWAGGER: process.env.ENABLE_SWAGGER === 'true',
-      // })],
-      cache: true,
     }),
 
     // Configure MongoDB connection
@@ -56,6 +53,6 @@ import { S3Module } from './common/s3/s3.module';
     S3Module
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, JwtStrategy],
 })
 export class AppModule { }

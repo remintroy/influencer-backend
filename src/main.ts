@@ -1,4 +1,4 @@
-import { NestFactory } from '@nestjs/core';
+import { NestFactory, Reflector } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
@@ -7,6 +7,9 @@ import helmet from 'helmet';
 import * as compression from 'compression';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
+import { RolesGuard } from './common/guards/role.guard';
+import * as cookieParser from 'cookie-parser';
+import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 
 /**
  * Bootstrap the application
@@ -28,6 +31,10 @@ async function bootstrap() {
   // Apply global security middleware
   app.use(helmet()); // Security headers
   app.use(compression()); // Response compression
+  app.use(cookieParser())
+
+  const reflector = app.get(Reflector);
+  app.useGlobalGuards(new JwtAuthGuard(reflector), new RolesGuard(reflector));
 
   // Apply global pipes
   app.useGlobalPipes(

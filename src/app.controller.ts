@@ -1,4 +1,4 @@
-import { Controller, Get, Query, Req } from '@nestjs/common';
+import { Controller, Get, Query } from '@nestjs/common';
 import { AppService } from './app.service';
 import { Public } from './common/decorators/public.decorator';
 import { ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
@@ -15,7 +15,7 @@ export class AppController {
 
   @Get()
   @Public()
-  getHello(): string {
+  getHello() {
     return this.appService.getHello();
   }
 
