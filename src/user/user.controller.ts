@@ -17,6 +17,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { User, UserRole } from './schemas/user.schema';
 import { AuthService } from 'src/auth/auth.service';
 import { CreateInfluencerDto } from './dto/create-influencer.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
 import mongoose, { ObjectId, Types } from 'mongoose';
 import { Request } from 'express';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
@@ -110,8 +111,8 @@ export class UserController {
   @ApiOperation({ summary: 'Update user by ID' })
   @ApiParam({ name: 'userId', description: 'User ID' })
   @Put(':userId')
-  async updateUser(@Param('userId') userId: string, @Req() req: Request, @Body() reqData: Partial<User>) {
-    if (!reqData) throw new BadRequestException('Noting to update');
+  async updateUser(@Param('userId') userId: string, @Req() req: Request, @Body() reqData: UpdateUserDto) {
+    if (!reqData) throw new BadRequestException('Nothing to update');
     if (req.user?.role == UserRole.USER && req.user?.userId != userId) {
       throw new ForbiddenException('Unauthorized to update this user');
     }

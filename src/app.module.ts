@@ -1,32 +1,61 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { MongooseModule } from '@nestjs/mongoose';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { UserModule } from './user/user.module';
-import { MongooseModule } from '@nestjs/mongoose';
-import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthModule } from './auth/auth.module';
-import { NotificationModule } from './notification/notification.module';
-import { JwtStrategy } from './auth/strategy/jwt.strategy';
+import { UserModule } from './user/user.module';
 import { CategoryModule } from './category/category.module';
+import { NotificationModule } from './notification/notification.module';
+import { validate } from './config/env.validation';
 import { S3Module } from './common/s3/s3.module';
 
+/**
+ * Root application module
+ * This module serves as the root of the application and is responsible for:
+ * - Loading environment variables
+ * - Configuring the database connection
+ * - Importing and configuring all feature modules
+ * - Setting up global providers and controllers
+ */
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
-    UserModule,
+    // Load and validate environment variables
+    ConfigModule.forRoot({
+      isGlobal: true,
+      validate,
+      envFilePath: ['.env', '.env.dev', '.env.production'],
+      // load: [() => ({
+      //   ENABLE_SWAGGER: process.env.ENABLE_SWAGGER === 'true',
+      // })],
+      cache: true,
+    }),
+
+    // Configure MongoDB connection
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
-      inject: [ConfigService],
       useFactory: async (configService: ConfigService) => ({
-        uri: configService.get('MONGODB_URI'),
+        uri: configService.get<string>('MONGODB_URI'),
+        // useNewUrlParser: true,
+        // useUnifiedTopology: true,
+        // Additional MongoDB options
+        autoIndex: configService.get('NODE_ENV') === 'dev',
+        maxPoolSize: 10,
+        minPoolSize: 5,
+        socketTimeoutMS: 45000,
+        family: 4,
       }),
+      inject: [ConfigService],
     }),
-    AuthModule,
-    NotificationModule,
-    CategoryModule,
-    S3Module,
+
+    // Feature modules
+    AuthModule,      // Authentication and authorization
+    UserModule,      // User management
+    CategoryModule,  // Category management
+    NotificationModule, // Notification system
+    S3Module
   ],
   controllers: [AppController],
-  providers: [AppService, JwtStrategy],
+  providers: [AppService],
 })
-export class AppModule {}
+export class AppModule { }

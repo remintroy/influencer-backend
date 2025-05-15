@@ -1,8 +1,9 @@
 import { Controller, Get, Query, Req } from '@nestjs/common';
 import { AppService } from './app.service';
 import { Public } from './common/decorators/public.decorator';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { S3Service } from './common/s3/s3.service';
+import { UploadUrlDto } from './common/dto/upload-url.dto';
 
 @ApiTags('Health check and common')
 @Controller()
@@ -10,7 +11,7 @@ export class AppController {
   constructor(
     private readonly appService: AppService,
     private readonly s3Service: S3Service,
-  ) {}
+  ) { }
 
   @Get()
   @Public()
@@ -20,7 +21,10 @@ export class AppController {
 
   @Get('upload-url')
   @Public()
-  getSignedUrl(@Query('fileName') fileName: string, @Query('fileType') fileType: string) {
-    return this.s3Service.generateUploadUrl({ fileName, fileType });
+  @ApiOperation({ summary: 'Get signed URL for file upload' })
+  @ApiQuery({ name: 'fileName', type: String, required: true })
+  @ApiQuery({ name: 'fileType', type: String, required: false })
+  getSignedUrl(@Query() query: UploadUrlDto) {
+    return this.s3Service.generateUploadUrl(query);
   }
 }
