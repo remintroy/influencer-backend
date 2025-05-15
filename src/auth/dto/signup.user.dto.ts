@@ -36,9 +36,11 @@ export class SignupUserDto {
 
   @IsString()
   @IsOptional()
+  @ApiPropertyOptional({ description: 'Gender' })
   gender: string;
 
   @IsString()
   @IsOptional()
+  @ApiPropertyOptional({ description: 'Commercial Registration Id' })
   commercialRegistrationID: string;
 }

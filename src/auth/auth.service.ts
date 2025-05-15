@@ -185,9 +185,12 @@ export class AuthService {
       phoneNumber: reqData?.phoneNumber,
     });
 
-    if (reqData?.email == existingUser?.email) throw new BadRequestException("Can't create account with this email");
-    if (reqData?.phoneNumber == existingUser?.phoneNumber)
+    if (reqData?.email && reqData?.email == existingUser?.email) {
+      throw new BadRequestException("Can't create account with this email");
+    }
+    if (reqData?.phoneNumber && reqData?.phoneNumber == existingUser?.phoneNumber) {
       throw new BadRequestException("Can't create account with this phone number");
+    }
     if (existingUser) throw new BadRequestException('User already exits');
 
     const password = await this.createPasswordHash(reqData?.password);
