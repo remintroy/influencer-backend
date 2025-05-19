@@ -13,7 +13,7 @@ export interface UserPaginationResponse {
 @Injectable()
 export class UserService {
   // Exclude sensitive/internal fields from responses
-  private readonly projection = { password: 0, deleted: 0, __v: 0 };
+  private readonly projection: { [key: string]: false | 0 | undefined } = { password: 0, deleted: 0, __v: 0 };
 
   // Default query to filter out disabled or soft-deleted users
   private readonly defaultQuery = { deleted: false, disabled: false };
