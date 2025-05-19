@@ -2,3 +2,5 @@ ignoredBuiltDependencies:
   - '@nestjs/core'
   - '@scarf/scarf'
   - '@swc/core'
+onlyBuiltDependencies:
+  - sharp
