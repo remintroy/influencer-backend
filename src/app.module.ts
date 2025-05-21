@@ -10,6 +10,7 @@ import { NotificationModule } from './notification/notification.module';
 import { validate } from './config/env.validation';
 import { S3Module } from './common/s3/s3.module';
 import { JwtStrategy } from './auth/strategy/jwt.strategy';
+import { CartModule } from './cart/cart.module';
 
 /**
  * Root application module
@@ -46,13 +47,14 @@ import { JwtStrategy } from './auth/strategy/jwt.strategy';
     }),
 
     // Feature modules
-    AuthModule,      // Authentication and authorization
-    UserModule,      // User management
-    CategoryModule,  // Category management
+    AuthModule, // Authentication and authorization
+    UserModule, // User management
+    CategoryModule, // Category management
     NotificationModule, // Notification system
-    S3Module
+    S3Module,
+    CartModule,
   ],
   controllers: [AppController],
   providers: [AppService, JwtStrategy],
 })
-export class AppModule { }
+export class AppModule {}

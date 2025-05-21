@@ -23,6 +23,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     // Get the error response
     const errorResponse = exception.getResponse();
     const message = typeof errorResponse === 'string' ? errorResponse : (errorResponse as any).message || 'Internal server error';
+    const error = typeof errorResponse === 'string' ? errorResponse : (errorResponse as any).error || 'Internal server error';
 
     // Log the error
     this.logger.error(`${request.method} ${request.url} - ${status} - ${message}`, exception.stack);
@@ -40,7 +41,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
       },
       error: {
         code: status,
-        details: status === HttpStatus.INTERNAL_SERVER_ERROR ? 'Internal server error' : message,
+        details: status === HttpStatus.INTERNAL_SERVER_ERROR ? 'Internal server error' : error || message,
       },
     });
   }
