@@ -31,7 +31,7 @@ async function bootstrap() {
   // Apply global security middleware
   app.use(helmet()); // Security headers
   app.use(compression()); // Response compression
-  app.use(cookieParser())
+  app.use(cookieParser());
 
   const reflector = app.get(Reflector);
   app.useGlobalGuards(new JwtAuthGuard(reflector), new RolesGuard(reflector));
@@ -43,7 +43,7 @@ async function bootstrap() {
       transform: true, // Transform payloads to DTO instances
       forbidNonWhitelisted: true, // Throw errors if non-whitelisted properties are present
       transformOptions: {
-        enableImplicitConversion: true, // Enable implicit conversion of primitive types 
+        enableImplicitConversion: true, // Enable implicit conversion of primitive types
       },
     }),
   );
@@ -64,17 +64,18 @@ async function bootstrap() {
       .setTitle('Influencer Management Platform API')
       .setDescription('API documentation for the Influencer Management Platform')
       .setVersion('1.0')
-      .addBearerAuth({
-        type: 'http',
-        scheme: 'bearer',
-        bearerFormat: 'JWT',
-        name: 'Authorization',
-        in: 'header',
-      },
+      .addBearerAuth(
+        {
+          type: 'http',
+          scheme: 'bearer',
+          bearerFormat: 'JWT',
+          name: 'Authorization',
+          in: 'header',
+        },
         'access-token', // This is the name you'll refer to in decorators
       )
       .addTag('Authentication', 'Authentication related endpoints')
-      .addTag('Users', 'User management endpoints')
+      .addTag('User management', 'User management endpoints')
       .addTag('Categories', 'Category management endpoints')
       .build();
 
