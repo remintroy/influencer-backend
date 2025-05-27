@@ -1,16 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { Category, CategoryDocument } from './schemas/category.schema';
+import { Category, CategoryDocument, CategoryPaginationResponse } from './schemas/category.schema';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
-
-export interface CategoryPaginationResponse {
-  totalDocs: number;
-  page: number;
-  limit: number;
-  docs: Partial<Category>[];
-}
 
 @Injectable()
 export class CategoryService {

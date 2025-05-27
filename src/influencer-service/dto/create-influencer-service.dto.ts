@@ -38,5 +38,5 @@ export class CreateInfluencerServiceDto {
     description: 'Collaboration Id for creating service inside collaboration',
   })
   @IsOptional()
-  collaborationId?: Types.ObjectId;
+  collaborationId?: string;
 }

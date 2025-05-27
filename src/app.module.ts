@@ -11,6 +11,14 @@ import { validate } from './config/env.validation';
 import { S3Module } from './common/s3/s3.module';
 import { JwtStrategy } from './auth/strategy/jwt.strategy';
 import { CartModule } from './cart/cart.module';
+import { InfluencerServiceModule } from './influencer-service/influencer-service.module';
+import { AvailabilityModule } from './availability/availability.module';
+import { CollaborationModule } from './collaboration/collaboration.module';
+import { OrderModule } from './order/order.module';
+import { ChatModule } from './chat/chat.module';
+import { CouponModule } from './coupon/coupon.module';
+import { FlashDealModule } from './flash-deal/flash-deal.module';
+import { TagModule } from './tag/tag.module';
 
 /**
  * Root application module
@@ -53,6 +61,14 @@ import { CartModule } from './cart/cart.module';
     NotificationModule, // Notification system
     S3Module,
     CartModule,
+    InfluencerServiceModule,
+    AvailabilityModule,
+    CollaborationModule,
+    OrderModule,
+    ChatModule,
+    CouponModule,
+    FlashDealModule,
+    TagModule,
   ],
   controllers: [AppController],
   providers: [AppService, JwtStrategy],

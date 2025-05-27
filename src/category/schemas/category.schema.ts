@@ -1,7 +1,9 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
+import { PaginationResponse } from 'src/@types/pagination-response.interface';
 
 export type CategoryDocument = Category & Document;
+export type CategoryPaginationResponse = PaginationResponse<Partial<Category>[]>;
 
 @Schema({ timestamps: true })
 export class Category {

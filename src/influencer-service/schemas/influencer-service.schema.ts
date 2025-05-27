@@ -1,23 +1,19 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
+import { PaginationResponse } from 'src/@types/pagination-response.interface';
 
 export type InfluencerServiceDocument = InfluencerServices & Document;
 
-export interface InfluencerServicePaginationResponse {
-  totalDocs: number;
-  page: number;
-  limit: number;
-  docs: Partial<InfluencerServices>[];
-}
+export type InfluencerServicePaginationResponse = PaginationResponse<Partial<InfluencerServices>[]>;
 
 @Schema({ timestamps: true })
 export class InfluencerServices {
   _id?: Types.ObjectId | string;
 
-  @Prop({ required: true, type: [Types.ObjectId], ref: 'User' })
-  owners: Types.ObjectId[];
+  @Prop({ type: Types.ObjectId, ref: 'User' })
+  userId?: Types.ObjectId | string;
 
-  @Prop({ required: true, type: [Types.ObjectId], ref: 'User' })
+  @Prop({ required: true, type: Types.ObjectId, ref: 'User' })
   createdBy?: Types.ObjectId;
 
   @Prop({ type: Types.ObjectId, ref: 'Collaboration' })

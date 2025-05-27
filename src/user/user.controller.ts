@@ -19,8 +19,6 @@ import { UserRole } from './schemas/user.schema';
 import { AuthService } from 'src/auth/auth.service';
 import { CreateInfluencerDto } from './dto/create-influencer.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
-import { CreateInfluencerServiceDto } from './dto/create-influencer-service.dto';
-import { UpdateInfluencerServiceDto } from './dto/update-influencer-service.dto';
 import mongoose, { Types } from 'mongoose';
 import { Request } from 'express';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
@@ -104,72 +102,6 @@ export class UserController {
     @Query('limit') limit: number,
   ) {
     return await this.usersService.getInfluencerSearchPaginated(search, { category, platform, page, limit });
-  }
-
-  // Services
-  @Post('/influencer/service')
-  @ApiOperation({ summary: 'Create a new influencer service' })
-  async createInfluencerService(@Req() req: Request, @Body() data: CreateInfluencerServiceDto) {
-    if (req?.user?.role != UserRole.INFLUENCER) {
-      throw new ForbiddenException({
-        error: 'Only influencer can create a service',
-        message: 'Action denied',
-      });
-    }
-
-    const influencerId = req?.user?.userId as string;
-    return this.usersService.createInfluencerService(influencerId, {
-      ...data,
-      influencerId: new Types.ObjectId(influencerId),
-    });
-  }
-
-  @Put('/influencer/service/:serviceId')
-  @ApiOperation({ summary: 'Update an influencer service' })
-  @ApiParam({ name: 'serviceId', description: 'Service ID' })
-  async updateInfluencerService(
-    @Param('serviceId') serviceId: string,
-    @Body() data: UpdateInfluencerServiceDto,
-    @Req() req: Request,
-  ) {
-    if (req?.user?.role != UserRole.INFLUENCER) {
-      throw new ForbiddenException({
-        error: 'Only influencer can update a service',
-        message: 'Action denied',
-      });
-    }
-
-    return this.usersService.updateInfluencerService(serviceId, data, { influencerId: req?.user?.userId as string });
-  }
-
-  @ApiOperation({ summary: 'Delete a influencer service' })
-  @Delete('/influencer/service/:serviceId')
-  async deleteInfluencerService(@Param('serviceId') serviceId: string, @Req() req: Request) {
-    if (req?.user?.role != UserRole.INFLUENCER) {
-      throw new ForbiddenException({
-        error: 'Only influencer can delete a service',
-        message: 'Action denied',
-      });
-    }
-
-    return this.usersService.deleteInfluencerServiceById(serviceId, req?.user?.userId as string);
-  }
-
-  @ApiOperation({ summary: 'Get a influencer service' })
-  @Get('/influencer/service/:serviceId')
-  async getInfluencerService(@Param('serviceId') serviceId: string) {
-    return this.usersService.getInfluencerServiceByServiceId(serviceId);
-  }
-
-  @ApiQuery({ name: 'page', required: false })
-  @ApiQuery({ name: 'limit', required: false })
-  @Get('/influencer/:influencerId/service')
-  async getInfluencerServiceByInfluencerId(
-    @Param('influencerId') influencerId: string,
-    @Query('page') page: number,
-    @Query('limit') limit: number,
-  ) {
-    return await this.usersService.getInfluencerServicesByInfluencerId(influencerId, { page, limit });
   }
 
   // Wild card routes

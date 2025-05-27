@@ -10,7 +10,6 @@ import { UserService } from 'src/user/user.service';
 import { RefreshToken, RefreshTokenSchema } from './schemas/refresh-token.schema';
 import { OptSchema, Otp } from './schemas/otp.schema';
 import { GoogleAuthService } from './google-auth/google-auth.service';
-import { InfluencerServices, InfluencerServicesSchema } from 'src/user/schemas/influencer-service.schema';
 
 @Module({
   imports: [
@@ -18,7 +17,6 @@ import { InfluencerServices, InfluencerServicesSchema } from 'src/user/schemas/i
     MongooseModule.forFeature([{ name: User.name, schema: UserSchema }]),
     MongooseModule.forFeature([{ name: RefreshToken.name, schema: RefreshTokenSchema }]),
     MongooseModule.forFeature([{ name: Otp.name, schema: OptSchema }]),
-    MongooseModule.forFeature([{ name: InfluencerServices.name, schema: InfluencerServicesSchema }])
   ],
   controllers: [AuthController],
   providers: [
