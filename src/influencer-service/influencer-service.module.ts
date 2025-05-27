@@ -1,3 +1,17 @@
+/**
+ * Influencer Service Module
+ *
+ * This module manages influencer services functionality including:
+ * - Creating and managing influencer services
+ * - Handling service updates and deletions
+ * - Managing service visibility and availability
+ * - Tracking service statistics and performance
+ *
+ * Dependencies:
+ * - UserModule: For user data and authentication
+ * - CollaborationModule: For collaboration-related operations
+ * - FlashDealModule: For flash deal integration
+ */
 import { Module } from '@nestjs/common';
 import { InfluencerServiceController } from './influencer-service.controller';
 import { InfluencerServiceService } from './influencer-service.service';
@@ -11,12 +25,19 @@ import { CollaborationService } from 'src/collaboration/collaboration.service';
 
 @Module({
   imports: [
+    // Import UserModule for user-related functionality
     UserModule,
-    MongooseModule.forFeature([{ name: User.name, schema: UserSchema }]),
-    MongooseModule.forFeature([{ name: InfluencerServices.name, schema: InfluencerServicesSchema }]),
-    MongooseModule.forFeature([{ name: Collaboration.name, schema: CollaborationSchema }]),
+
+    // Register Mongoose schemas
+    MongooseModule.forFeature([
+      { name: User.name, schema: UserSchema },
+      { name: InfluencerServices.name, schema: InfluencerServicesSchema },
+      { name: Collaboration.name, schema: CollaborationSchema },
+    ]),
   ],
   controllers: [InfluencerServiceController],
   providers: [InfluencerServiceService, UserService, CollaborationService],
+  // Export InfluencerServiceService for use in other modules
+  exports: [InfluencerServiceService],
 })
 export class InfluencerServiceModule {}
