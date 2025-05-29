@@ -91,6 +91,7 @@ export class CollaborationService {
 
   // Update a collaboration
   async updateCollaboration(id: string, data: Partial<Collaboration>) {
+    if (data?.users) data.users = data?.users?.map((e: any) => new Types.ObjectId(e));
     return await this.collaborationModel.findByIdAndUpdate(id, data, { new: true });
   }
 
