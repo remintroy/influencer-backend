@@ -22,39 +22,41 @@ export class CollaborationService {
     const page = Number(props?.page) || 1;
     const limit = Number(props?.limit) || 10;
 
-    return await this.collaborationModel.aggregate([
-      { $sort: { createdAt: -1 } },
-      {
-        $lookup: {
-          from: 'users',
-          as: 'usersData',
-          let: { users: '$users' },
-          pipeline: [
-            { $match: { ...this.userService.defaultQuery, $expr: { $and: [{ $in: ['$_id', '$$users'] }] } } },
-            { $project: this.userService.projection },
-          ],
+    return (
+      await this.collaborationModel.aggregate([
+        { $sort: { createdAt: -1 } },
+        {
+          $lookup: {
+            from: 'users',
+            as: 'usersData',
+            let: { users: '$users' },
+            pipeline: [
+              { $match: { ...this.userService.defaultQuery, $expr: { $and: [{ $in: ['$_id', '$$users'] }] } } },
+              { $project: this.userService.projection },
+            ],
+          },
         },
-      },
-      {
-        $match: {
-          'usersData._id': { $exists: true },
+        {
+          $match: {
+            'usersData._id': { $exists: true },
+          },
         },
-      },
-      {
-        $facet: {
-          metadata: [{ $count: 'totalDocs' }],
-          data: [{ $skip: (page - 1) * limit }, { $limit: limit }],
+        {
+          $facet: {
+            metadata: [{ $count: 'totalDocs' }],
+            data: [{ $skip: (page - 1) * limit }, { $limit: limit }],
+          },
         },
-      },
-      {
-        $project: {
-          totalDocs: { $ifNull: [{ $arrayElemAt: ['$metadata.totalDocs', 0] }, 0] },
-          page: { $literal: page },
-          limit: { $literal: limit },
-          docs: '$data',
+        {
+          $project: {
+            totalDocs: { $ifNull: [{ $arrayElemAt: ['$metadata.totalDocs', 0] }, 0] },
+            page: { $literal: page },
+            limit: { $literal: limit },
+            docs: '$data',
+          },
         },
-      },
-    ]);
+      ])
+    )?.[0];
   }
 
   // Get a collaboration by id
