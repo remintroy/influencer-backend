@@ -162,10 +162,12 @@ export class UserService {
 
   async getInfluencerSearchPaginated(
     search: string,
-    options: { category?: string; platform?: string; page?: number; limit?: number },
+    options: { category?: string; platform?: string; page?: number; limit?: number; hasService?: boolean },
   ): Promise<UserPaginationResponse> {
     const limit = options?.limit || 10;
     const page = options?.page || 1;
+
+    const hasService = Boolean(options?.hasService);
 
     let baseQuery: any = {
       role: UserRole.INFLUENCER,
@@ -193,6 +195,12 @@ export class UserService {
       },
       { $sort: { name: 1, createdAt: 1 } },
       { $project: this.projection },
+      ...(hasService
+        ? [
+            { $lookup: { from: 'influencerservices', localField: '_id', foreignField: 'userId', as: 'services' } },
+            { $match: { 'services.0': { $exists: true } } },
+          ]
+        : []),
       {
         $facet: {
           metadata: [{ $count: 'totalDocs' }],
@@ -200,6 +208,9 @@ export class UserService {
             { $skip: (page - 1) * limit },
             { $limit: limit },
             { $lookup: { from: 'categories', localField: 'category', foreignField: '_id', as: 'category' } },
+            ...(!hasService
+              ? [{ $lookup: { from: 'influencerservices', localField: '_id', foreignField: 'userId', as: 'services' } }]
+              : []),
           ],
         },
       },

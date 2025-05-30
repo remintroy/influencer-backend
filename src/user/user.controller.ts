@@ -94,14 +94,21 @@ export class UserController {
   @ApiQuery({ name: 'platform', required: false })
   @ApiQuery({ name: 'page', required: false })
   @ApiQuery({ name: 'limit', required: false })
+  @ApiQuery({
+    name: 'hasService',
+    required: false,
+    default: false,
+    description: 'If true, only return influencer with services. If false it will return all influencers',
+  })
   async searchInfluencers(
     @Query('search') search: string,
     @Query('category') category: string,
     @Query('platform') platform: string,
+    @Query('hasService') hasService: boolean,
     @Query('page') page: number,
     @Query('limit') limit: number,
   ) {
-    return await this.usersService.getInfluencerSearchPaginated(search, { category, platform, page, limit });
+    return await this.usersService.getInfluencerSearchPaginated(search, { category, platform, page, limit, hasService });
   }
 
   // Wild card routes
