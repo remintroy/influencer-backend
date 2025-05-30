@@ -45,55 +45,57 @@ export class FlashDealService {
     const page = Number(query?.page) || 1;
     const limit = Number(query?.limit) || 10;
 
-    return await this.flashDealModel.aggregate([
-      { $match: { isDeleted: false, isActive: true } },
-      {
-        $lookup: {
-          from: 'influencerservices',
-          localField: 'serviceId',
-          foreignField: '_id',
-          as: 'service',
+    return (
+      await this.flashDealModel.aggregate([
+        { $match: { isDeleted: false, isActive: true } },
+        {
+          $lookup: {
+            from: 'influencerservices',
+            localField: 'serviceId',
+            foreignField: '_id',
+            as: 'service',
+          },
         },
-      },
-      {
-        $lookup: {
-          from: 'users',
-          localField: 'createdBy',
-          foreignField: '_id',
-          as: 'creator',
-          pipeline: [{ $match: this.userService.defaultQuery }, { $project: this.userService.projection }],
+        {
+          $lookup: {
+            from: 'users',
+            localField: 'createdBy',
+            foreignField: '_id',
+            as: 'creator',
+            pipeline: [{ $match: this.userService.defaultQuery }, { $project: this.userService.projection }],
+          },
         },
-      },
-      {
-        $lookup: {
-          from: 'users',
-          localField: 'buyers',
-          foreignField: '_id',
-          as: 'buyersData',
-          pipeline: [{ $match: this.userService.defaultQuery }, { $project: this.userService.projection }],
+        {
+          $lookup: {
+            from: 'users',
+            localField: 'buyers',
+            foreignField: '_id',
+            as: 'buyersData',
+            pipeline: [{ $match: this.userService.defaultQuery }, { $project: this.userService.projection }],
+          },
         },
-      },
-      {
-        $addFields: {
-          service: { $arrayElemAt: ['$service', 0] },
-          creator: { $arrayElemAt: ['$creator', 0] },
+        {
+          $addFields: {
+            service: { $arrayElemAt: ['$service', 0] },
+            creator: { $arrayElemAt: ['$creator', 0] },
+          },
         },
-      },
-      {
-        $facet: {
-          metadata: [{ $count: 'totalDocs' }],
-          data: [{ $skip: (page - 1) * limit }, { $limit: limit }],
+        {
+          $facet: {
+            metadata: [{ $count: 'totalDocs' }],
+            data: [{ $skip: (page - 1) * limit }, { $limit: limit }],
+          },
         },
-      },
-      {
-        $project: {
-          totalDocs: { $ifNull: [{ $arrayElemAt: ['$metadata.totalDocs', 0] }, 0] },
-          page: { $literal: page },
-          limit: { $literal: limit },
-          docs: '$data',
+        {
+          $project: {
+            totalDocs: { $ifNull: [{ $arrayElemAt: ['$metadata.totalDocs', 0] }, 0] },
+            page: { $literal: page },
+            limit: { $literal: limit },
+            docs: '$data',
+          },
         },
-      },
-    ]);
+      ])
+    )?.[0];
   }
 
   async getFlashDealById(id: string) {
