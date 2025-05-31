@@ -10,6 +10,7 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
 import { RolesGuard } from './common/guards/role.guard';
 import * as cookieParser from 'cookie-parser';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
+import { MongoExceptionFilter } from './common/filters/mongo-exception.filter';
 
 /**
  * Bootstrap the application
@@ -49,7 +50,7 @@ async function bootstrap() {
   );
 
   // Apply global filters and interceptors
-  app.useGlobalFilters(new HttpExceptionFilter());
+  app.useGlobalFilters(new HttpExceptionFilter(), new MongoExceptionFilter());
   app.useGlobalInterceptors(new TransformInterceptor());
 
   // Configure global prefix
