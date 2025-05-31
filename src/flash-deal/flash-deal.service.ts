@@ -24,6 +24,20 @@ export class FlashDealService {
       throw new NotFoundException('Service not found');
     }
 
+    // Check if service is already part of an active flash deal
+    const existingFlashDeal = await this.flashDealModel.findOne({
+      serviceId: new Types.ObjectId(data.serviceId),
+      isDeleted: false,
+      isActive: true,
+      $or: [
+        { startDate: { $lte: new Date(data.endDate) }, endDate: { $gte: new Date(data.startDate) } }
+      ]
+    });
+
+    if (existingFlashDeal) {
+      throw new BadRequestException('This service is already part of an active flash deal');
+    }
+
     // Validate dates
     if (new Date(data.startDate) >= new Date(data.endDate)) {
       throw new BadRequestException('End date must be after start date');
