@@ -5,7 +5,6 @@ import { UserRole } from 'src/user/schemas/user.schema';
 import { UpdateInfluencerServiceDto } from './dto/update-influencer-service.dto';
 import { CreateInfluencerServiceDto } from './dto/create-influencer-service.dto';
 import { InfluencerServiceService } from './influencer-service.service';
-import { Types } from 'mongoose';
 import { Roles } from 'src/common/decorators/role.decorator';
 
 @ApiTags('Influencer services')

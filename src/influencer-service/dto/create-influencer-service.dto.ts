@@ -1,6 +1,5 @@
-import { IsNumber, IsOptional, IsString, IsUrl, Min } from 'class-validator';
+import { IsNumber, IsOptional, IsString, IsUrl, Min, IsBoolean } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Types } from 'mongoose';
 
 export class CreateInfluencerServiceDto {
   @ApiProperty({
@@ -23,6 +22,14 @@ export class CreateInfluencerServiceDto {
   })
   @IsUrl()
   imageUrl: string;
+
+  @ApiProperty({
+    description: 'Whether the service requires time slot booking',
+    example: true,
+  })
+  @IsBoolean()
+  @IsOptional()
+  requireTimeSlot?: boolean;
 
   @ApiPropertyOptional({
     description: 'Price of the service',

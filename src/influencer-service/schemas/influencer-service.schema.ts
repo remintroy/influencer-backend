@@ -30,6 +30,9 @@ export class InfluencerServices {
 
   @Prop({ type: Number, default: 0 })
   price?: number;
+
+  @Prop({ default: false, type: Boolean })
+  requireTimeSlot?: boolean;
 }
 
 export const InfluencerServicesSchema = SchemaFactory.createForClass(InfluencerServices);

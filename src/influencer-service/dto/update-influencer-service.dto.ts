@@ -1,4 +1,4 @@
-import { IsNumber, IsOptional, IsString, IsUrl, Min } from 'class-validator';
+import { IsNumber, IsOptional, IsString, IsUrl, Min, IsBoolean } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class UpdateInfluencerServiceDto {
@@ -25,6 +25,14 @@ export class UpdateInfluencerServiceDto {
     @IsOptional()
     @IsUrl()
     imageUrl?: string;
+
+    @ApiPropertyOptional({
+        description: 'Whether the service requires time slot booking',
+        example: true,
+    })
+    @IsOptional()
+    @IsBoolean()
+    requireTimeSlot?: boolean;
 
     @ApiPropertyOptional({
         description: 'Price of the service',
