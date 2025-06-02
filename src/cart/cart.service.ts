@@ -73,7 +73,7 @@ export class CartService {
         timeSlot.endTime,
       );
 
-      if (!isAvailable.isAvailable) {
+      if (!isAvailable) {
         throw new BadRequestException('Selected time slot is not available');
       }
     }
@@ -166,7 +166,7 @@ export class CartService {
         timeSlot.endTime,
       );
 
-      if (!isAvailable.isAvailable) {
+      if (!isAvailable) {
         throw new BadRequestException('Selected time slot is not available');
       }
 

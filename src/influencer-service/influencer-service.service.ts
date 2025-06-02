@@ -5,28 +5,36 @@ import {
   InfluencerServiceDocument,
   InfluencerServicePaginationResponse,
   InfluencerServices,
+  ServiceType,
 } from './schemas/influencer-service.schema';
 import { isValidObjectId, Model, Types } from 'mongoose';
 import { UserService } from 'src/user/user.service';
-import { CollaborationService } from 'src/collaboration/collaboration.service';
 
 @Injectable()
 export class InfluencerServiceService {
   constructor(
     @InjectModel(InfluencerServices.name) private readonly influencerServiceModal: Model<InfluencerServiceDocument>,
     private readonly userService: UserService,
-    private readonly collaborationService: CollaborationService,
   ) {}
 
   async createInfluencerService(createdBy: string, data: InfluencerServices) {
     const dataFromDb = await this.userService.getInfluencerById(createdBy);
 
-    if (data.collaborationId) data.collaborationId = new Types.ObjectId(data.collaborationId);
-    if (!data.userId && !data.collaborationId) data.userId = new Types.ObjectId(createdBy);
-
     if (!dataFromDb) throw new NotFoundException('User not found');
     if (dataFromDb?.role != UserRole.INFLUENCER) {
       throw new ForbiddenException({ message: 'Only influencer can create service', error: 'Access Denied' });
+    }
+
+    // Convert user IDs to ObjectIds
+    if (data.users) {
+      data.users = data.users.map((id) => new Types.ObjectId(id));
+    }
+
+    // Add creator to users array if not present
+    if (!data.users) {
+      data.users = [new Types.ObjectId(createdBy)];
+    } else if (!data.users.some((id) => id.toString() === createdBy)) {
+      data.users.push(new Types.ObjectId(createdBy));
     }
 
     return await this.influencerServiceModal.create({ ...data, createdBy: new Types.ObjectId(createdBy) });
@@ -38,15 +46,14 @@ export class InfluencerServiceService {
 
     if (!serviceData) throw new BadRequestException('Service not found');
 
-    if (serviceData?.createdBy + '' != options?.currentUser + '' && !serviceData?.collaborationId) {
-      throw new ForbiddenException("You don't have permisson to update this service");
+    // Check if user has permission to update
+    if (!serviceData.users?.map((id) => id.toString()).includes(options?.currentUser)) {
+      throw new ForbiddenException("You don't have permission to update this service");
     }
 
-    if (serviceData.collaborationId) {
-      const data = await this.collaborationService.getCollaborationById(serviceData?.collaborationId as string);
-      if (!data?.users?.map((e: any) => e + '')?.includes(options?.currentUser + '')) {
-        throw new ForbiddenException("You don't have permisson to update this service");
-      }
+    // Convert user IDs to ObjectIds if present
+    if (data.users) {
+      data.users = data.users.map((id) => new Types.ObjectId(id));
     }
 
     return await this.influencerServiceModal.findOneAndUpdate(
@@ -72,7 +79,10 @@ export class InfluencerServiceService {
 
     const data = await this.influencerServiceModal.aggregate([
       {
-        $match: { userId: new Types.ObjectId(influencerId) },
+        $match: {
+          users: new Types.ObjectId(influencerId),
+          type: ServiceType.INDIVIDUAL,
+        },
       },
       {
         $facet: {
@@ -93,18 +103,13 @@ export class InfluencerServiceService {
     return data?.[0];
   }
 
-  async getInfluencerServicesByCollaborationId(
-    collaborationId: string,
-    params?: { page?: number; limit?: number },
-  ): Promise<InfluencerServicePaginationResponse> {
-    if (!isValidObjectId(collaborationId)) throw new BadRequestException('Invalid collaborationId');
-
+  async getCollaborationServices(params?: { page?: number; limit?: number }): Promise<InfluencerServicePaginationResponse> {
     const page = Math.max(1, Number(params?.page || 1));
     const limit = Math.max(1, Number(params?.limit || 10));
 
     const data = await this.influencerServiceModal.aggregate([
       {
-        $match: { collaborationId: new Types.ObjectId(collaborationId) },
+        $match: { type: ServiceType.COLLABORATION },
       },
       {
         $facet: {
@@ -133,15 +138,9 @@ export class InfluencerServiceService {
 
     if (!serviceData) throw new BadRequestException('Service not found');
 
-    if (serviceData?.createdBy + '' != currentUserId + '' && !serviceData?.collaborationId) {
-      throw new ForbiddenException("You don't have permisson to update this service");
-    }
-
-    if (serviceData.collaborationId) {
-      const data = await this.collaborationService.getCollaborationById(serviceData?.collaborationId as string);
-      if (!data?.users?.map((e: any) => e + '')?.includes(currentUserId + '')) {
-        throw new ForbiddenException("You don't have permisson to update this service");
-      }
+    // Check if user has permission to delete
+    if (!serviceData.users?.map((id) => id.toString()).includes(currentUserId)) {
+      throw new ForbiddenException("You don't have permission to delete this service");
     }
 
     const deleted = await this.influencerServiceModal.deleteOne({ _id: new Types.ObjectId(serviceId) });

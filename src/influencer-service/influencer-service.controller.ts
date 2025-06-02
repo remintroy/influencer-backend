@@ -26,8 +26,8 @@ export class InfluencerServiceController {
 
   @Get('/influencer/:influencerId')
   @ApiOperation({
-    summary: 'Get services by influencer ID',
-    description: 'Retrieve all services created by a specific influencer',
+    summary: 'Get individual services by influencer ID',
+    description: 'Retrieve all individual services created by a specific influencer',
   })
   @ApiParam({ name: 'influencerId', description: 'ID of the influencer' })
   @ApiQuery({ name: 'page', required: false, description: 'Page number for pagination' })
@@ -40,26 +40,24 @@ export class InfluencerServiceController {
     return await this.influencerServiceService.getInfluencerServicesByInfluencerId(influencerId, { page, limit });
   }
 
-  @Get('/collaboration/:collaborationId')
+  @Get('/collaborations')
   @ApiOperation({
-    summary: 'Get services by collaboration ID',
-    description: 'Retrieve all services associated with a specific collaboration',
+    summary: 'Get all collaboration services',
+    description: 'Retrieve all collaboration type services',
   })
-  @ApiParam({ name: 'collaborationId', description: 'ID of the collaboration' })
   @ApiQuery({ name: 'page', required: false, description: 'Page number for pagination' })
   @ApiQuery({ name: 'limit', required: false, description: 'Number of items per page' })
-  async getInfluencerServiceByCollaborationId(
-    @Param('collaborationId') collaborationId: string,
+  async getCollaborationServices(
     @Query('page') page: number,
     @Query('limit') limit: number,
   ) {
-    return await this.influencerServiceService.getInfluencerServicesByCollaborationId(collaborationId, { page, limit });
+    return await this.influencerServiceService.getCollaborationServices({ page, limit });
   }
 
   @Put('/:serviceId')
   @ApiOperation({
     summary: 'Update an influencer service',
-    description: 'Update an existing service. Only the creator or collaboration members can update.',
+    description: 'Update an existing service. Only service members can update.',
   })
   @ApiParam({ name: 'serviceId', description: 'ID of the service to update' })
   @Roles(UserRole.INFLUENCER)
@@ -74,7 +72,7 @@ export class InfluencerServiceController {
   @Delete('/:serviceId')
   @ApiOperation({
     summary: 'Delete an influencer service',
-    description: 'Delete a service. Only the creator or collaboration members can delete.',
+    description: 'Delete a service. Only service members can delete.',
   })
   @ApiParam({ name: 'serviceId', description: 'ID of the service to delete' })
   @Roles(UserRole.INFLUENCER)

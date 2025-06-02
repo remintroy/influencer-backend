@@ -9,7 +9,6 @@
  *
  * Dependencies:
  * - UserModule: For user data and authentication
- * - CollaborationModule: For collaboration-related operations
  * - FlashDealModule: For flash deal integration
  */
 import { Module } from '@nestjs/common';
@@ -20,8 +19,6 @@ import { UserModule } from 'src/user/user.module';
 import { MongooseModule } from '@nestjs/mongoose';
 import { User, UserSchema } from 'src/user/schemas/user.schema';
 import { InfluencerServices, InfluencerServicesSchema } from './schemas/influencer-service.schema';
-import { Collaboration, CollaborationSchema } from 'src/collaboration/schemas/collaboration.schema';
-import { CollaborationService } from 'src/collaboration/collaboration.service';
 
 @Module({
   imports: [
@@ -32,11 +29,10 @@ import { CollaborationService } from 'src/collaboration/collaboration.service';
     MongooseModule.forFeature([
       { name: User.name, schema: UserSchema },
       { name: InfluencerServices.name, schema: InfluencerServicesSchema },
-      { name: Collaboration.name, schema: CollaborationSchema },
     ]),
   ],
   controllers: [InfluencerServiceController],
-  providers: [InfluencerServiceService, UserService, CollaborationService],
+  providers: [InfluencerServiceService, UserService],
   // Export InfluencerServiceService for use in other modules
   exports: [InfluencerServiceService],
 })

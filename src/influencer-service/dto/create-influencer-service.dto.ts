@@ -1,5 +1,6 @@
-import { IsNumber, IsOptional, IsString, IsUrl, Min, IsBoolean } from 'class-validator';
+import { IsNumber, IsOptional, IsString, IsUrl, Min, IsBoolean, IsEnum, IsArray } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ServiceType } from '../schemas/influencer-service.schema';
 
 export class CreateInfluencerServiceDto {
   @ApiProperty({
@@ -41,9 +42,36 @@ export class CreateInfluencerServiceDto {
   @Min(0)
   price?: number;
 
+  @ApiProperty({
+    description: 'Type of service',
+    enum: ServiceType,
+    example: ServiceType.INDIVIDUAL,
+  })
+  @IsEnum(ServiceType)
+  type: ServiceType;
+
   @ApiPropertyOptional({
-    description: 'Collaboration Id for creating service inside collaboration',
+    description: 'List of user IDs involved in the service',
+    type: [String],
+    example: ['60f7b2e1c1234a1234567890', '60f7b2e1c1234a1234567891'],
   })
   @IsOptional()
-  collaborationId?: string;
+  @IsArray()
+  users?: string[];
+
+  @ApiPropertyOptional({
+    description: 'Collaboration details for collaboration type services',
+    type: Object,
+    example: {
+      title: 'Joint Marketing Campaign',
+      images: ['https://example.com/image1.jpg', 'https://example.com/image2.jpg'],
+      description: 'A collaborative marketing campaign'
+    }
+  })
+  @IsOptional()
+  collaborationDetails?: {
+    title?: string;
+    images?: string[];
+    description?: string;
+  };
 }

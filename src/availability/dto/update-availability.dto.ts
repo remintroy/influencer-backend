@@ -1,33 +1,39 @@
-import { IsArray, IsDate, IsEnum, IsMongoId, IsOptional, IsString, ValidateNested } from 'class-validator';
-import { Type } from 'class-transformer';
+import { IsArray, IsBoolean, IsDate, IsEnum, IsMongoId, IsOptional } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { TimeSlotStatus } from '../schemas/availability.schema';
+import { Type } from 'class-transformer';
 
 export class UpdateTimeSlotDto {
   @ApiPropertyOptional({
-    description: 'Start time in 24-hour format (HH:mm)',
-    example: '09:00',
+    description: 'Start time of the slot',
+    example: '2024-03-20T10:00:00Z',
   })
-  @IsString()
-  startTime: string;
+  @IsOptional()
+  @IsDate()
+  @Type(() => Date)
+  startTime?: Date;
 
   @ApiPropertyOptional({
-    description: 'End time in 24-hour format (HH:mm)',
-    example: '09:30',
+    description: 'End time of the slot',
+    example: '2024-03-20T10:30:00Z',
   })
-  @IsString()
-  endTime: string;
+  @IsOptional()
+  @IsDate()
+  @Type(() => Date)
+  endTime?: Date;
 
   @ApiPropertyOptional({
     description: 'Status of the time slot',
     enum: TimeSlotStatus,
-    example: TimeSlotStatus.UNAVAILABLE,
+    example: TimeSlotStatus.AVAILABLE,
   })
+  @IsOptional()
   @IsEnum(TimeSlotStatus)
-  status: TimeSlotStatus;
+  status?: TimeSlotStatus;
 
   @ApiPropertyOptional({
-    description: 'Booking ID if the slot is booked',
+    description: 'ID of the booking associated with this slot',
+    example: '60f7b2e1c1234a1234567890',
   })
   @IsOptional()
   @IsMongoId()
@@ -36,27 +42,19 @@ export class UpdateTimeSlotDto {
 
 export class UpdateAvailabilityDto {
   @ApiPropertyOptional({
-    description: 'Date for which availability is being updated',
-    example: '2024-03-20',
-  })
-  @IsOptional()
-  @IsDate()
-  @Type(() => Date)
-  date?: Date;
-
-  @ApiPropertyOptional({
-    description: 'Array of time slots to update',
+    description: 'List of time slots',
     type: [UpdateTimeSlotDto],
   })
   @IsOptional()
   @IsArray()
-  @ValidateNested({ each: true })
   @Type(() => UpdateTimeSlotDto)
   timeSlots?: UpdateTimeSlotDto[];
 
   @ApiPropertyOptional({
     description: 'Whether the availability is active',
+    example: true,
   })
   @IsOptional()
+  @IsBoolean()
   isActive?: boolean;
 } 

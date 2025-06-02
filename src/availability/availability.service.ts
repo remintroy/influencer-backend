@@ -1,18 +1,18 @@
 import { BadRequestException, Injectable, NotFoundException, InternalServerErrorException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { Availability, AvailabilityDocument, TimeSlot, TimeSlotStatus } from './schemas/availability.schema';
-import { CreateAvailabilityDto } from './dto/create-availability.dto';
+import { Availability, TimeSlot, TimeSlotStatus } from './schemas/availability.schema';
+import { CreateAvailabilityDto, TimeSlotDto } from './dto/create-availability.dto';
 import { UpdateAvailabilityDto, UpdateTimeSlotDto } from './dto/update-availability.dto';
-import { UserService } from 'src/user/user.service';
-import { CollaborationService } from 'src/collaboration/collaboration.service';
+import { InfluencerServiceService } from '../influencer-service/influencer-service.service';
+import { ServiceType } from '../influencer-service/schemas/influencer-service.schema';
+import { isValidObjectId } from 'mongoose';
 
 @Injectable()
 export class AvailabilityService {
   constructor(
-    @InjectModel(Availability.name) private availabilityModel: Model<AvailabilityDocument>,
-    private userService: UserService,
-    private collaborationService: CollaborationService,
+    @InjectModel(Availability.name) private readonly availabilityModel: Model<Availability>,
+    private readonly influencerServiceService: InfluencerServiceService,
   ) {}
 
   private validateTimeFormat(time: string): boolean {
@@ -38,67 +38,60 @@ export class AvailabilityService {
     // Create a map of existing slots for easy lookup
     const slotMap = new Map<string, TimeSlot>();
     existingSlots.forEach((slot) => {
-      slotMap.set(slot.startTime, slot);
+      slotMap.set(slot.startTime.toISOString(), slot);
     });
 
     // Update or add new slots
     newSlots.forEach((slot) => {
-      slotMap.set(slot.startTime, {
+      slotMap.set(slot.startTime?.toISOString() as string, {
         ...slot,
+        startTime: new Date(slot?.startTime as unknown as string),
+        endTime: new Date(slot?.endTime as unknown as string),
+        status: slot.status as TimeSlotStatus,
         bookingId: slot.bookingId ? new Types.ObjectId(slot.bookingId) : undefined,
       });
     });
 
     // Convert map back to array and sort by start time
-    return Array.from(slotMap.values()).sort((a, b) => a.startTime.localeCompare(b.startTime));
+    return Array.from(slotMap.values()).sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
   }
 
   async createAvailability(createAvailabilityDto: CreateAvailabilityDto, influencerId: string): Promise<Availability> {
-    try {
-      const { date, timeSlots } = createAvailabilityDto;
+    const { timeSlots, isActive = true } = createAvailabilityDto;
 
-      // Check if availability already exists for this date
-      const existingAvailability = await this.availabilityModel.findOne({
-        influencerId: new Types.ObjectId(influencerId),
-        date: new Date(date),
-      });
+    // Convert DTO to TimeSlot array and validate basic format
+    const slots: TimeSlot[] = await this.validateAndConvertTimeSlots(timeSlots, influencerId);
 
-      if (existingAvailability) {
-        // If availability exists, merge the new slots with existing ones
-        const mergedSlots = this.mergeTimeSlots(existingAvailability.timeSlots, timeSlots);
-        existingAvailability.timeSlots = mergedSlots;
-        return existingAvailability.save();
-      }
+    // Get existing availability for the influencer
+    const existingAvailability = await this.availabilityModel.find({
+      userId: new Types.ObjectId(influencerId),
+      isActive: true,
+    }).exec();
 
-      // Validate time slots if provided
-      if (timeSlots) {
-        for (const slot of timeSlots) {
-          if (!this.validateTimeSlot(slot.startTime, slot.endTime)) {
+    // Check for overlaps with existing availability
+    for (const availability of existingAvailability) {
+      for (const existingSlot of availability.timeSlots) {
+        for (const newSlot of slots) {
+          if (
+            (newSlot.startTime <= existingSlot.startTime && newSlot.endTime > existingSlot.startTime) ||
+            (existingSlot.startTime <= newSlot.startTime && existingSlot.endTime > newSlot.startTime)
+          ) {
             throw new BadRequestException(
-              `Invalid time slot: ${slot.startTime} - ${slot.endTime}. Slots must be exactly 30 minutes long.`,
+              `Time slot ${newSlot.startTime.toISOString()} - ${newSlot.endTime.toISOString()} overlaps with existing availability`,
             );
           }
         }
       }
-
-      // Create new availability with provided time slots
-      const availability = new this.availabilityModel({
-        influencerId: new Types.ObjectId(influencerId),
-        date: new Date(date),
-        timeSlots: timeSlots || [],
-      });
-
-      return await availability.save();
-    } catch (error) {
-      if (error.name === 'ValidationError') {
-        const validationErrors = Object.values(error.errors).map((err: any) => err.message);
-        throw new BadRequestException(validationErrors.join(', '));
-      }
-      if (error.name === 'CastError') {
-        throw new BadRequestException(`Invalid ${error.path}: ${error.value}`);
-      }
-      throw new InternalServerErrorException('An error occurred while creating availability');
     }
+
+    // Create new availability
+    const availability = new this.availabilityModel({
+      userId: new Types.ObjectId(influencerId),
+      timeSlots: slots,
+      isActive,
+    });
+
+    return availability.save();
   }
 
   async updateAvailability(
@@ -106,267 +99,174 @@ export class AvailabilityService {
     updateAvailabilityDto: UpdateAvailabilityDto,
     influencerId: string,
   ): Promise<Availability> {
-    try {
-      const availability = await this.availabilityModel.findOne({
-        _id: new Types.ObjectId(id),
-        influencerId: new Types.ObjectId(influencerId),
-      });
+    const { timeSlots, isActive } = updateAvailabilityDto;
+
+    if (timeSlots) {
+      // Convert UpdateTimeSlotDto[] to TimeSlotDto[] for validation
+      const timeSlotDtos: TimeSlotDto[] = timeSlots.map((slot) => ({
+        startTime: slot.startTime!,
+        endTime: slot.endTime!,
+        status: slot.status,
+        bookingId: slot.bookingId,
+      }));
+
+      // Convert DTO to TimeSlot array and validate
+      const slots: TimeSlot[] = await this.validateAndConvertTimeSlots(timeSlotDtos, influencerId);
+
+      const availability = await this.availabilityModel
+        .findByIdAndUpdate(id, { $set: { timeSlots: slots, isActive } }, { new: true })
+        .exec();
 
       if (!availability) {
         throw new NotFoundException('Availability not found');
       }
 
-      if (updateAvailabilityDto.timeSlots) {
-        // Validate all time slots before updating
-        for (const slot of updateAvailabilityDto.timeSlots) {
-          if (!this.validateTimeSlot(slot.startTime, slot.endTime)) {
-            throw new BadRequestException(
-              `Invalid time slot: ${slot.startTime} - ${slot.endTime}. Slots must be exactly 30 minutes long.`,
-            );
-          }
-        }
-
-        // Merge the updated slots with existing ones
-        availability.timeSlots = this.mergeTimeSlots(availability.timeSlots, updateAvailabilityDto.timeSlots);
-      }
-
-      if (updateAvailabilityDto.isActive !== undefined) {
-        availability.isActive = updateAvailabilityDto.isActive;
-      }
-
-      return await availability.save();
-    } catch (error) {
-      if (error.name === 'ValidationError') {
-        const validationErrors = Object.values(error.errors).map((err: any) => err.message);
-        throw new BadRequestException(validationErrors.join(', '));
-      }
-      if (error.name === 'CastError') {
-        throw new BadRequestException(`Invalid ${error.path}: ${error.value}`);
-      }
-      if (error instanceof NotFoundException) {
-        throw error;
-      }
-      throw new InternalServerErrorException('An error occurred while updating availability');
+      return availability;
     }
-  }
 
-  async getAvailabilityByDate(date: Date, influencerId: string): Promise<Availability> {
-    const availability = await this.availabilityModel.findOne({
-      influencerId: new Types.ObjectId(influencerId),
-      date: new Date(date),
-    });
+    const availability = await this.availabilityModel.findByIdAndUpdate(id, { $set: { isActive } }, { new: true }).exec();
 
     if (!availability) {
-      throw new NotFoundException('Availability not found for this date');
+      throw new NotFoundException('Availability not found');
     }
 
     return availability;
   }
 
-  async getAvailabilityRange(startDate: Date, endDate: Date, influencerId: string): Promise<Availability[]> {
-    return this.availabilityModel.find({
-      influencerId: new Types.ObjectId(influencerId),
-      date: {
-        $gte: new Date(startDate),
-        $lte: new Date(endDate),
-      },
-    });
+  async getAvailabilityByDate(date: Date, influencerId: string): Promise<Availability[]> {
+    const startOfDay = new Date(date);
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const endOfDay = new Date(date);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    return this.availabilityModel
+      .find({
+        userId: new Types.ObjectId(influencerId),
+        'timeSlots.startTime': { $gte: startOfDay },
+        'timeSlots.endTime': { $lte: endOfDay },
+      })
+      .exec();
   }
 
   async bookTimeSlot(
-    availabilityId: string,
-    startTime: string,
-    endTime: string,
+    id: string,
+    startTime: Date | string,
+    endTime: Date | string,
     bookingId: string,
     influencerId: string,
   ): Promise<Availability> {
-    try {
-      const availability = await this.availabilityModel.findOne({
-        _id: new Types.ObjectId(availabilityId),
-        influencerId: new Types.ObjectId(influencerId),
-      });
-
-      if (!availability) {
-        throw new NotFoundException('Availability not found');
-      }
-
-      const slotIndex = availability.timeSlots.findIndex((slot) => slot.startTime === startTime && slot.endTime === endTime);
-
-      if (slotIndex === -1) {
-        throw new BadRequestException('Time slot not found');
-      }
-
-      if (availability.timeSlots[slotIndex].status !== TimeSlotStatus.AVAILABLE) {
-        throw new BadRequestException('Time slot is not available');
-      }
-
-      availability.timeSlots[slotIndex].status = TimeSlotStatus.BOOKED;
-      availability.timeSlots[slotIndex].bookingId = new Types.ObjectId(bookingId);
-
-      return await availability.save();
-    } catch (error) {
-      if (error.name === 'ValidationError') {
-        const validationErrors = Object.values(error.errors).map((err: any) => err.message);
-        throw new BadRequestException(validationErrors.join(', '));
-      }
-      if (error.name === 'CastError') {
-        throw new BadRequestException(`Invalid ${error.path}: ${error.value}`);
-      }
-      if (error instanceof NotFoundException || error instanceof BadRequestException) {
-        throw error;
-      }
-      throw new InternalServerErrorException('An error occurred while booking time slot');
-    }
-  }
-
-  async approveBooking(availabilityId: string, startTime: string, endTime: string, influencerId: string): Promise<Availability> {
-    const availability = await this.availabilityModel.findOne({
-      _id: new Types.ObjectId(availabilityId),
-      influencerId: new Types.ObjectId(influencerId),
-    });
-
+    const availability = await this.availabilityModel.findById(id).exec();
     if (!availability) {
       throw new NotFoundException('Availability not found');
     }
 
-    const slotIndex = availability.timeSlots.findIndex((slot) => slot.startTime === startTime && slot.endTime === endTime);
-
-    if (slotIndex === -1) {
-      throw new BadRequestException('Time slot not found');
+    if (availability.userId.toString() !== influencerId) {
+      throw new BadRequestException('You can only book slots in your own availability');
     }
 
-    if (availability.timeSlots[slotIndex].status !== TimeSlotStatus.BOOKED) {
-      throw new BadRequestException('Time slot is not booked');
+    startTime = new Date(startTime);
+    endTime = new Date(endTime);
+
+    // Find and update the matching time slot
+    const timeSlots = availability.timeSlots.map((slot) => {
+      if (
+        slot.startTime.getTime() === startTime.getTime() &&
+        slot.endTime.getTime() === endTime.getTime() &&
+        slot.status === TimeSlotStatus.AVAILABLE
+      ) {
+        return {
+          ...slot,
+          status: TimeSlotStatus.BOOKED,
+          bookingId: new Types.ObjectId(bookingId),
+        };
+      }
+      return slot;
+    });
+
+    availability.timeSlots = timeSlots;
+    return availability.save();
+  }
+
+  async approveBooking(
+    id: string,
+    startTime: Date | string,
+    endTime: Date | string,
+    influencerId: string,
+  ): Promise<Availability> {
+    const availability = await this.availabilityModel.findById(id).exec();
+    if (!availability) {
+      throw new NotFoundException('Availability not found');
     }
 
-    // Keep the slot as booked but mark it as approved
-    availability.timeSlots[slotIndex].status = TimeSlotStatus.BOOKED;
+    if (availability.userId.toString() !== influencerId) {
+      throw new BadRequestException('You can only approve bookings in your own availability');
+    }
 
+    startTime = new Date(startTime);
+    endTime = new Date(endTime);
+
+    // Find and update the matching time slot
+    const timeSlots = availability.timeSlots.map((slot) => {
+      if (
+        slot.startTime.getTime() === startTime.getTime() &&
+        slot.endTime.getTime() === endTime.getTime() &&
+        slot.status === TimeSlotStatus.BOOKED
+      ) {
+        return {
+          ...slot,
+          status: TimeSlotStatus.UNAVAILABLE,
+        };
+      }
+      return slot;
+    });
+
+    availability.timeSlots = timeSlots;
     return availability.save();
   }
 
   async deleteAvailability(id: string, influencerId: string): Promise<void> {
-    const result = await this.availabilityModel.deleteOne({
-      _id: new Types.ObjectId(id),
-      influencerId: new Types.ObjectId(influencerId),
-    });
+    const availability = await this.availabilityModel.findById(id).exec();
+    if (!availability) {
+      throw new NotFoundException('Availability not found');
+    }
 
+    if (availability.userId.toString() !== influencerId) {
+      throw new BadRequestException('You can only delete your own availability');
+    }
+
+    const result = await this.availabilityModel.deleteOne({ _id: id }).exec();
     if (result.deletedCount === 0) {
       throw new NotFoundException('Availability not found');
     }
   }
 
-  // Get all availability slots for an influencer
-  async getInfluencerAvailability(influencerId: string, query?: { startDate?: Date; endDate?: Date; status?: string }) {
-    const match: any = {
-      influencerId: new Types.ObjectId(influencerId),
-      isDeleted: false,
-    };
+  async checkInfluencerAvailability(influencerId: string, date: Date, startTime: string, endTime: string): Promise<boolean> {
+    const start = new Date(`${date.toISOString().split('T')[0]}T${startTime}`);
+    const end = new Date(`${date.toISOString().split('T')[0]}T${endTime}`);
 
-    if (query?.startDate && query?.endDate) {
-      match.startTime = { $gte: new Date(query.startDate) };
-      match.endTime = { $lte: new Date(query.endDate) };
+    // Get all active availabilities for the user
+    const availabilities = await this.availabilityModel
+      .find({
+        userId: new Types.ObjectId(influencerId),
+        isActive: true,
+      })
+      .exec();
+
+    if (!availabilities.length) {
+      return false;
     }
 
-    if (query?.status) {
-      match.status = query.status;
-    }
-
-    return await this.availabilityModel.find(match).sort({ startTime: 1 });
-  }
-
-  // Check if a time slot is available for booking
-  async checkAvailabilityForBooking(
-    influencerId: string,
-    startTime: Date,
-    endTime: Date,
-    collaborationId?: string,
-  ): Promise<boolean> {
-    // If it's a collaboration, check all influencers' availability
-    if (collaborationId) {
-      const collaboration = await this.collaborationService.getCollaborationById(collaborationId);
-      if (!collaboration) {
-        throw new NotFoundException('Collaboration not found');
-      }
-
-      if (!collaboration?.users) return false;
-
-      // Check availability for all influencers in the collaboration
-      for (const userId of collaboration.users) {
-        const hasConflict = await this.checkTimeConflict(userId.toString(), startTime, endTime);
-        if (hasConflict) {
-          return false;
+    // Check if the requested time slot overlaps with any existing availability
+    for (const availability of availabilities) {
+      for (const slot of availability.timeSlots) {
+        if (slot.status === TimeSlotStatus.AVAILABLE && slot.startTime <= start && slot.endTime >= end) {
+          return true;
         }
       }
-
-      return true;
     }
 
-    // For single influencer, check their availability
-    return !(await this.checkTimeConflict(influencerId, startTime, endTime));
-  }
-
-  // Helper method to check for time conflicts
-  private async checkTimeConflict(influencerId: string, startTime: Date, endTime: Date, excludeId?: string): Promise<boolean> {
-    const query: any = {
-      influencerId: new Types.ObjectId(influencerId),
-      isDeleted: false,
-      $or: [
-        // Check if new slot overlaps with existing slots
-        {
-          startTime: { $lt: new Date(endTime) },
-          endTime: { $gt: new Date(startTime) },
-        },
-      ],
-    };
-
-    if (excludeId) {
-      query._id = { $ne: new Types.ObjectId(excludeId) };
-    }
-
-    const conflict = await this.availabilityModel.findOne(query);
-    return !!conflict;
-  }
-
-  async checkInfluencerAvailability(
-    influencerId: string,
-    date: Date,
-    startTime: string,
-    endTime: string,
-  ): Promise<{ isAvailable: boolean; availableSlots: TimeSlot[] }> {
-    try {
-      // Validate time format
-      if (!this.validateTimeFormat(startTime) || !this.validateTimeFormat(endTime)) {
-        throw new BadRequestException('Invalid time format. Use HH:mm format with 30-minute intervals.');
-      }
-
-      // Find availability for the given date
-      const availability = await this.availabilityModel.findOne({
-        influencerId: new Types.ObjectId(influencerId),
-        date: new Date(date),
-      });
-
-      if (!availability) {
-        return { isAvailable: false, availableSlots: [] };
-      }
-
-      // Find all available slots within the requested time range
-      const availableSlots = availability.timeSlots.filter((slot) => {
-        const slotStart = slot.startTime;
-        const slotEnd = slot.endTime;
-        return slot.status === TimeSlotStatus.AVAILABLE && slotStart >= startTime && slotEnd <= endTime;
-      });
-
-      return {
-        isAvailable: availableSlots.length > 0,
-        availableSlots,
-      };
-    } catch (error) {
-      if (error instanceof BadRequestException) {
-        throw error;
-      }
-      throw new InternalServerErrorException('Error checking availability');
-    }
+    return false;
   }
 
   async getInfluencerSchedule(
@@ -392,99 +292,188 @@ export class AvailabilityService {
       bookingRate: number;
     };
   }> {
-    try {
-      const availabilities = await this.availabilityModel
-        .find({
-          influencerId: new Types.ObjectId(influencerId),
-          date: {
-            $gte: new Date(startDate),
-            $lte: new Date(endDate),
-          },
-        })
-        .sort({ date: 1 });
+    const availabilities = await this.availabilityModel
+      .find({
+        userId: new Types.ObjectId(influencerId),
+        isActive: true,
+        'timeSlots.startTime': { $gte: startDate },
+        'timeSlots.endTime': { $lte: endDate },
+      })
+      .exec();
 
-      let totalAvailableSlots = 0;
-      let totalBookedSlots = 0;
-      let totalUnavailableSlots = 0;
+    const schedule = availabilities.map((availability) => {
+      const timeSlots = availability.timeSlots;
+      const totalAvailable = timeSlots.filter((slot) => slot.status === TimeSlotStatus.AVAILABLE).length;
+      const totalBooked = timeSlots.filter((slot) => slot.status === TimeSlotStatus.BOOKED).length;
+      const totalUnavailable = timeSlots.filter((slot) => slot.status === TimeSlotStatus.UNAVAILABLE).length;
 
-      const schedule = availabilities.map((availability) => {
-        const timeSlots = availability.timeSlots;
-        const availableSlots = timeSlots.filter((slot) => slot.status === TimeSlotStatus.AVAILABLE);
-        const bookedSlots = timeSlots.filter((slot) => slot.status === TimeSlotStatus.BOOKED);
-        const unavailableSlots = timeSlots.filter((slot) => slot.status === TimeSlotStatus.UNAVAILABLE);
+      const availableTimeRanges = timeSlots
+        .filter((slot) => slot.status === TimeSlotStatus.AVAILABLE)
+        .map((slot) => ({
+          startTime: slot.startTime.toISOString(),
+          endTime: slot.endTime.toISOString(),
+        }));
 
-        // Update totals
-        totalAvailableSlots += availableSlots.length;
-        totalBookedSlots += bookedSlots.length;
-        totalUnavailableSlots += unavailableSlots.length;
-
-        // Group consecutive available slots into ranges
-        const availableTimeRanges = this.groupConsecutiveSlots(availableSlots);
-        
-        // Group booked slots with their booking IDs
-        const bookedTimeRanges = bookedSlots.map(slot => ({
-          startTime: slot.startTime,
-          endTime: slot.endTime,
+      const bookedTimeRanges = timeSlots
+        .filter((slot) => slot.status === TimeSlotStatus.BOOKED)
+        .map((slot) => ({
+          startTime: slot.startTime.toISOString(),
+          endTime: slot.endTime.toISOString(),
           bookingId: slot.bookingId?.toString() || '',
         }));
 
-        return {
-          date: availability.date,
-          timeSlots,
-          totalAvailable: availableSlots.length,
-          totalBooked: bookedSlots.length,
-          totalUnavailable: unavailableSlots.length,
-          availableTimeRanges,
-          bookedTimeRanges,
-        };
-      });
+      // Use the earliest slot's startTime as the date for this schedule entry
+      const sortedSlots = [...timeSlots].sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
+      const date = sortedSlots.length > 0 ? sortedSlots[0].startTime : new Date();
 
-      const totalDays = schedule.length;
-      const summary = {
-        totalDays,
-        totalAvailableSlots,
-        totalBookedSlots,
-        totalUnavailableSlots,
-        averageAvailabilityPerDay: totalDays > 0 ? totalAvailableSlots / totalDays : 0,
-        bookingRate: totalAvailableSlots + totalBookedSlots > 0 
-          ? (totalBookedSlots / (totalAvailableSlots + totalBookedSlots)) * 100 
-          : 0,
+      return {
+        date,
+        timeSlots,
+        totalAvailable,
+        totalBooked,
+        totalUnavailable,
+        availableTimeRanges,
+        bookedTimeRanges,
       };
+    });
 
-      return { schedule, summary };
-    } catch (error) {
-      throw new InternalServerErrorException('Error fetching schedule');
-    }
+    const summary = {
+      totalDays: schedule.length,
+      totalAvailableSlots: schedule.reduce((sum, day) => sum + day.totalAvailable, 0),
+      totalBookedSlots: schedule.reduce((sum, day) => sum + day.totalBooked, 0),
+      totalUnavailableSlots: schedule.reduce((sum, day) => sum + day.totalUnavailable, 0),
+      averageAvailabilityPerDay:
+        schedule.length > 0 ? schedule.reduce((sum, day) => sum + day.totalAvailable, 0) / schedule.length : 0,
+      bookingRate:
+        schedule.length > 0
+          ? schedule.reduce((sum, day) => sum + day.totalBooked, 0) /
+            schedule.reduce((sum, day) => sum + day.totalAvailable + day.totalBooked, 0)
+          : 0,
+    };
+
+    return { schedule, summary };
   }
 
-  private groupConsecutiveSlots(slots: TimeSlot[]): { startTime: string; endTime: string }[] {
-    if (!slots.length) return [];
+  private async validateAndConvertTimeSlots(timeSlots: TimeSlotDto[], influencerId: string): Promise<TimeSlot[]> {
+    if (!timeSlots || !Array.isArray(timeSlots) || timeSlots.length === 0) {
+      throw new BadRequestException('Time slots must be a non-empty array');
+    }
 
-    const sortedSlots = [...slots].sort((a, b) => a.startTime.localeCompare(b.startTime));
-    const ranges: { startTime: string; endTime: string }[] = [];
-    let currentRange = { startTime: sortedSlots[0].startTime, endTime: sortedSlots[0].endTime };
+    // Convert DTO to TimeSlot array
+    const slots: TimeSlot[] = timeSlots.map((slot) => ({
+      startTime: slot.startTime,
+      endTime: slot.endTime,
+      status: slot.status || TimeSlotStatus.AVAILABLE,
+      bookingId: slot.bookingId ? new Types.ObjectId(slot.bookingId) : undefined,
+    }));
 
-    for (let i = 1; i < sortedSlots.length; i++) {
-      const currentSlot = sortedSlots[i];
-      const [currentEndHour, currentEndMin] = currentRange.endTime.split(':').map(Number);
-      const [nextStartHour, nextStartMin] = currentSlot.startTime.split(':').map(Number);
+    // Validate each time slot
+    for (const slot of slots) {
+      if (!slot.startTime || !slot.endTime) {
+        throw new BadRequestException('Each time slot must have start and end times');
+      }
 
-      const currentEndMinutes = currentEndHour * 60 + currentEndMin;
-      const nextStartMinutes = nextStartHour * 60 + nextStartMin;
+      if (slot.startTime >= slot.endTime) {
+        throw new BadRequestException('Start time must be before end time');
+      }
 
-      if (nextStartMinutes === currentEndMinutes) {
-        // Slots are consecutive, extend the current range
-        currentRange.endTime = currentSlot.endTime;
-      } else {
-        // Gap found, save current range and start a new one
-        ranges.push({ ...currentRange });
-        currentRange = { startTime: currentSlot.startTime, endTime: currentSlot.endTime };
+      // Check if the time slot duration is valid (30 minutes minimum)
+      const slotDuration = (slot.endTime.getTime() - slot.startTime.getTime()) / (1000 * 60); // in minutes
+      if (slotDuration < 30) {
+        throw new BadRequestException('Time slot duration must be at least 30 minutes');
+      }
+
+      // Check if the time slot duration is in 30-minute increments
+      if (slotDuration % 30 !== 0) {
+        throw new BadRequestException('Time slot duration must be in 30-minute increments');
+      }
+
+      // Validate that slots are not in the past
+      const now = new Date();
+      if (slot.startTime < now) {
+        throw new BadRequestException('Cannot create time slots in the past');
       }
     }
 
-    // Add the last range
-    ranges.push(currentRange);
-    return ranges;
+    // Check for overlapping slots within the new slots
+    for (let i = 0; i < slots.length; i++) {
+      for (let j = i + 1; j < slots.length; j++) {
+        const slot1 = slots[i];
+        const slot2 = slots[j];
+
+        if (
+          (slot1.startTime <= slot2.startTime && slot1.endTime > slot2.startTime) ||
+          (slot2.startTime <= slot1.startTime && slot2.endTime > slot1.startTime)
+        ) {
+          throw new BadRequestException('Time slots cannot overlap');
+        }
+      }
+    }
+
+    return slots;
+  }
+
+  async getAvailabilityByUserId(userId: string) {
+    if (!isValidObjectId(userId)) throw new BadRequestException('Invalid userId');
+    return await this.availabilityModel.findOne({ userId: new Types.ObjectId(userId) });
+  }
+
+  async checkUserAvailability(userId: string, startTime: Date, endTime: Date): Promise<boolean> {
+    if (!isValidObjectId(userId)) throw new BadRequestException('Invalid userId');
+
+    const availability = await this.availabilityModel.findOne({
+      userId: new Types.ObjectId(userId),
+      'timeSlots.startTime': { $lte: endTime },
+      'timeSlots.endTime': { $gte: startTime },
+    });
+
+    if (!availability) return false;
+
+    // Check if the requested time slot overlaps with any existing time slots
+    const hasOverlap = availability.timeSlots.some((slot) => {
+      const slotStart = new Date(slot.startTime);
+      const slotEnd = new Date(slot.endTime);
+      return (
+        (startTime >= slotStart && startTime < slotEnd) ||
+        (endTime > slotStart && endTime <= slotEnd) ||
+        (startTime <= slotStart && endTime >= slotEnd)
+      );
+    });
+
+    return !hasOverlap;
+  }
+
+  async checkAvailabilityForService(serviceId: string, startTime: Date, endTime: Date): Promise<boolean> {
+    const service = await this.influencerServiceService.getInfluencerServiceByServiceId(serviceId);
+    if (!service) {
+      throw new NotFoundException('Service not found');
+    }
+
+    // If it's a collaboration service, check all users' availability
+    if (service.type === ServiceType.COLLABORATION && service.users) {
+      // Check availability for all users in the service
+      for (const userId of service.users) {
+        const isAvailable = await this.checkUserAvailability(userId.toString(), startTime, endTime);
+        if (!isAvailable) return false;
+      }
+      return true;
+    }
+
+    // For individual services, check only the creator's availability
+    if (!service.createdBy) {
+      throw new NotFoundException('Service creator not found');
+    }
+    return this.checkUserAvailability(service.createdBy.toString(), startTime, endTime);
+  }
+
+  async getAvailabilityRange(startDate: Date, endDate: Date, influencerId: string): Promise<Availability[]> {
+    return this.availabilityModel.find({
+      influencerId: new Types.ObjectId(influencerId),
+      date: {
+        $gte: new Date(startDate),
+        $lte: new Date(endDate),
+      },
+    });
   }
 
   async getInfluencerNextAvailableSlot(influencerId: string, fromDate: Date): Promise<{ date: Date; timeSlot: TimeSlot } | null> {
@@ -495,7 +484,8 @@ export class AvailabilityService {
           date: { $gte: new Date(fromDate) },
           'timeSlots.status': TimeSlotStatus.AVAILABLE,
         })
-        .sort({ date: 1 });
+        .sort({ date: 1 })
+        .lean();
 
       if (!availability) {
         return null;

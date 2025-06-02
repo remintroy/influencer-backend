@@ -13,7 +13,6 @@ import { JwtStrategy } from './auth/strategy/jwt.strategy';
 import { CartModule } from './cart/cart.module';
 import { InfluencerServiceModule } from './influencer-service/influencer-service.module';
 import { AvailabilityModule } from './availability/availability.module';
-import { CollaborationModule } from './collaboration/collaboration.module';
 import { OrderModule } from './order/order.module';
 import { ChatModule } from './chat/chat.module';
 import { CouponModule } from './coupon/coupon.module';
@@ -63,7 +62,6 @@ import { TagModule } from './tag/tag.module';
     CartModule,
     InfluencerServiceModule,
     AvailabilityModule,
-    CollaborationModule,
     OrderModule,
     ChatModule,
     CouponModule,
