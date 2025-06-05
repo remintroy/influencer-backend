@@ -176,9 +176,11 @@ export class AuthService {
   }
 
   async signUp(reqData: SignupUserDto, res: Response, userAgent?: string) {
-    if (!reqData?.email || !reqData?.password) {
-      throw new BadRequestException('Email & Password is required');
+    if (!reqData?.email || !reqData?.phoneNumber) {
+      throw new BadRequestException('Email or PhoneNumber is required');
     }
+
+    if (!reqData?.password) throw new BadRequestException('Password is required');
 
     const existingUser = await this.userService.getUserByEmailOrPhoneSudo('', {
       email: reqData?.email,
