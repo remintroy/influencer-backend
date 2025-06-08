@@ -1,58 +1,54 @@
-import { IsArray, IsBoolean, IsDate, IsEnum, IsMongoId, IsOptional } from 'class-validator';
+import { IsArray, IsDate, IsEnum, IsMongoId, IsOptional, IsString, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { TimeSlotStatus } from '../schemas/availability.schema';
-import { Type } from 'class-transformer';
 
 export class TimeSlotDto {
   @ApiProperty({
-    description: 'Start time of the slot',
-    example: '2024-03-20T10:00:00Z',
+    description: 'Start time in 24-hour format (HH:mm)',
+    example: '09:00',
   })
-  @IsDate()
-  @Type(() => Date)
-  startTime: Date;
+  @IsString()
+  startTime: string;
 
   @ApiProperty({
-    description: 'End time of the slot',
-    example: '2024-03-20T10:30:00Z',
+    description: 'End time in 24-hour format (HH:mm)',
+    example: '09:30',
   })
-  @IsDate()
-  @Type(() => Date)
-  endTime: Date;
+  @IsString()
+  endTime: string;
 
-  @ApiPropertyOptional({
+  @ApiProperty({
     description: 'Status of the time slot',
     enum: TimeSlotStatus,
     example: TimeSlotStatus.AVAILABLE,
   })
-  @IsOptional()
   @IsEnum(TimeSlotStatus)
-  status?: TimeSlotStatus;
-
-  @ApiPropertyOptional({
-    description: 'ID of the booking associated with this slot',
-    example: '60f7b2e1c1234a1234567890',
-  })
-  @IsOptional()
-  @IsMongoId()
-  bookingId?: string;
+  status: TimeSlotStatus;
 }
 
 export class CreateAvailabilityDto {
   @ApiProperty({
-    description: 'List of time slots',
+    description: 'Date for which availability is being set',
+    example: '2024-03-20',
+  })
+  @IsDate()
+  @Type(() => Date)
+  date: Date;
+
+  @ApiProperty({
+    description: 'Array of time slots for the day',
     type: [TimeSlotDto],
   })
   @IsArray()
+  @ValidateNested({ each: true })
   @Type(() => TimeSlotDto)
   timeSlots: TimeSlotDto[];
 
   @ApiPropertyOptional({
-    description: 'Whether the availability is active',
-    example: true,
-    default: true,
+    description: 'Influencer ID (if not the authenticated user)',
   })
   @IsOptional()
-  @IsBoolean()
-  isActive?: boolean;
+  @IsMongoId()
+  influencerId?: string;
 } 

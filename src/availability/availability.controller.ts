@@ -23,7 +23,7 @@ export class AvailabilityController {
   @Roles(UserRole.INFLUENCER)
   async createAvailability(@Body() createAvailabilityDto: CreateAvailabilityDto, @Req() req: Request) {
     const influencerId = req?.user?.userId as string;
-    return this.availabilityService.createAvailability(createAvailabilityDto, influencerId);
+    return this.availabilityService.createOptimizedAvailability(createAvailabilityDto, influencerId);
   }
 
   @Put(':id')
