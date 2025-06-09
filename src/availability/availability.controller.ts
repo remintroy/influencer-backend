@@ -1,5 +1,15 @@
 import { BadRequestException, Body, Controller, Delete, Get, Param, Post, Put, Query, Req } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiParam, ApiQuery, ApiTags, ApiResponse, ApiBody } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiParam,
+  ApiQuery,
+  ApiTags,
+  ApiResponse,
+  ApiBody,
+  ApiBadRequestResponse,
+  ApiNotFoundResponse,
+} from '@nestjs/swagger';
 import { Request } from 'express';
 import { AvailabilityService } from './availability.service';
 import { CreateAvailabilityDto } from './dto/create-availability.dto';
@@ -8,8 +18,9 @@ import { Roles } from '../common/decorators/role.decorator';
 import { UserRole } from '../user/schemas/user.schema';
 import { CheckAvailabilityDto } from './dto/check-availability.dto';
 import { GetScheduleDto } from './dto/get-schedule.dto';
+import { DeleteTimeSlotsDto, DeleteTimeSlotsResponseDto } from './dto/delete-availability.dto';
 
-@ApiTags('Availability')
+@ApiTags('Availability (Beta)')
 @ApiBearerAuth('access-token')
 @Controller('availability')
 export class AvailabilityController {
@@ -118,6 +129,42 @@ export class AvailabilityController {
     );
   }
 
+  @Delete('/date/:date/slots')
+  @ApiOperation({
+    summary: 'Delete time slots',
+    description: 'Delete specific slots, partial slots, or all slots with flexible options',
+  })
+  @ApiResponse({ status: 200, type: DeleteTimeSlotsResponseDto })
+  @ApiBadRequestResponse({ description: 'Invalid input or booked slots' })
+  @ApiNotFoundResponse({ description: 'Availability not found' })
+  @Roles(UserRole.INFLUENCER)
+  async deleteTimeSlots(
+    @Param('date') dateParam: string,
+    @Body() body: DeleteTimeSlotsDto,
+    @Req() req: Request,
+  ): Promise<DeleteTimeSlotsResponseDto> {
+    const influencerId = req?.user?.userId!;
+
+    // Validate date format
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+      throw new BadRequestException('Date must be in YYYY-MM-DD format');
+    }
+
+    const date = new Date(dateParam);
+    if (isNaN(date.getTime())) {
+      throw new BadRequestException('Invalid date provided');
+    }
+
+    return await this.availabilityService.deleteTimeSlots(
+      influencerId,
+      date,
+      body.timeSlots || [],
+      body.deleteAll,
+      body.allowPartial,
+      body.removeEmpty,
+    );
+  }
+
   @Get(':influencerId/date/:date')
   @ApiOperation({
     summary: 'Get availability by date',
@@ -166,18 +213,6 @@ export class AvailabilityController {
   ) {
     const influencerId = req?.user?.userId as string;
     return this.availabilityService.approveBooking(id, bookingData.startTime, bookingData.endTime, influencerId);
-  }
-
-  @Delete(':id')
-  @ApiOperation({
-    summary: 'Delete availability',
-    description: 'Delete availability for a specific date',
-  })
-  @ApiParam({ name: 'id', description: 'Availability ID' })
-  @Roles(UserRole.INFLUENCER)
-  async deleteAvailability(@Param('id') id: string, @Req() req: Request) {
-    const influencerId = req?.user?.userId as string;
-    return this.availabilityService.deleteAvailability(id, influencerId);
   }
 
   @Get('check/:influencerId')

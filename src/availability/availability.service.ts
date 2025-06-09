@@ -4,6 +4,19 @@ import { Model, Types } from 'mongoose';
 import { Availability, AvailabilityDocument, TimeSlot, TimeSlotStatus } from './schemas/availability.schema';
 import { CreateAvailabilityDto, TimeSlotDto } from './dto/create-availability.dto';
 
+export interface DeleteTimeSlotRequest {
+  startTime: string;
+  endTime: string;
+}
+
+export interface DeleteResult {
+  success: boolean;
+  message: string;
+  deletedCount: number;
+  modifiedCount: number;
+  availabilityRemoved: boolean;
+}
+
 @Injectable()
 export class AvailabilityService {
   constructor(@InjectModel(Availability.name) private availabilityModel: Model<AvailabilityDocument>) {}
@@ -59,6 +72,15 @@ export class AvailabilityService {
   timeToMinutes(time: string): number {
     const [hours, minutes] = time.split(':').map(Number);
     return hours * 60 + minutes;
+  }
+
+  /**
+   * Converts minutes to time string
+   */
+  private minutesToTime(minutes: number): string {
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
   }
 
   /**
@@ -305,9 +327,210 @@ export class AvailabilityService {
   // ----------------------------------------------------------------------------------------------------------------------------------
 
   /**
-   * Deletes specific time slots from a day
+   * Main delete method handling all deletion scenarios
    */
   async deleteTimeSlots(
+    influencerId: string,
+    date: Date,
+    slotsToDelete: DeleteTimeSlotRequest[] = [],
+    deleteAll: boolean = false,
+    allowPartial: boolean = true,
+    removeEmpty: boolean = false,
+  ): Promise<DeleteResult> {
+    try {
+      // Validate inputs
+      if (!influencerId || !date) {
+        throw new BadRequestException('Influencer ID and date are required');
+      }
+
+      // Find existing availability
+      const targetDate = new Date(date);
+      const availability = await this.availabilityModel.findOne({
+        influencerId: new Types.ObjectId(influencerId),
+        date: targetDate,
+      });
+
+      if (!availability) {
+        throw new NotFoundException(`No availability found for date ${targetDate.toISOString().split('T')[0]}`);
+      }
+
+      let deletedCount = 0;
+      let modifiedCount = 0;
+
+      // Handle delete all
+      if (deleteAll) {
+        const bookedSlots = availability.timeSlots.filter((slot) => slot.status === TimeSlotStatus.BOOKED);
+        if (bookedSlots.length > 0) {
+          throw new BadRequestException(
+            `Cannot delete all slots. Found booked slots: ${bookedSlots.map((s) => `${s.startTime}-${s.endTime}`).join(', ')}`,
+          );
+        }
+        deletedCount = availability.timeSlots.length;
+        availability.timeSlots = [];
+      } else {
+        // Process specific slots
+        if (!slotsToDelete.length) {
+          throw new BadRequestException('At least one slot to delete is required');
+        }
+
+        this.validateTimeSlots(slotsToDelete);
+
+        for (const slotToDelete of slotsToDelete) {
+          const result = this.processSlotDeletion(availability, slotToDelete, allowPartial);
+          deletedCount += result.deleted;
+          modifiedCount += result.modified;
+        }
+      }
+
+      // Handle cleanup
+      if (removeEmpty && availability.timeSlots.length === 0) {
+        await this.availabilityModel.deleteOne({ _id: availability._id });
+        return {
+          success: true,
+          message: 'All slots deleted and availability removed',
+          deletedCount,
+          modifiedCount,
+          availabilityRemoved: true,
+        };
+      }
+
+      // Sort and save
+      availability.timeSlots = this.sortTimeSlots(availability.timeSlots);
+      await availability.save();
+
+      return {
+        success: true,
+        message: this.buildDeletedMessage(deletedCount, modifiedCount),
+        deletedCount,
+        modifiedCount,
+        availabilityRemoved: false,
+      };
+    } catch (error) {
+      if (error instanceof BadRequestException || error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new InternalServerErrorException('Failed to delete time slots');
+    }
+  }
+
+  /**
+   * Processes single slot deletion with flexible matching
+   */
+  private processSlotDeletion(
+    availability: any,
+    slotToDelete: DeleteTimeSlotRequest,
+    allowPartial: boolean,
+  ): { deleted: number; modified: number } {
+    const { startTime, endTime } = slotToDelete;
+
+    // Try exact match first
+    const exactIndex = availability.timeSlots.findIndex((slot) => slot.startTime === startTime && slot.endTime === endTime);
+
+    if (exactIndex !== -1) {
+      const slot = availability.timeSlots[exactIndex];
+      if (slot.status === TimeSlotStatus.BOOKED) {
+        throw new BadRequestException(`Cannot delete booked slot ${startTime}-${endTime}`);
+      }
+      availability.timeSlots.splice(exactIndex, 1);
+      return { deleted: 1, modified: 0 };
+    }
+
+    if (!allowPartial) {
+      throw new BadRequestException(`Slot ${startTime}-${endTime} not found`);
+    }
+
+    // Handle partial/spanning deletion
+    return this.handlePartialDeletion(availability, startTime, endTime);
+  }
+
+  /**
+   * Handles partial deletion across multiple slots
+   */
+  private handlePartialDeletion(availability: any, startTime: string, endTime: string): { deleted: number; modified: number } {
+    const deleteStart = this.timeToMinutes(startTime);
+    const deleteEnd = this.timeToMinutes(endTime);
+
+    const overlappingSlots = availability.timeSlots.filter((slot) => {
+      const slotStart = this.timeToMinutes(slot.startTime);
+      const slotEnd = this.timeToMinutes(slot.endTime);
+      return slotStart < deleteEnd && slotEnd > deleteStart;
+    });
+
+    if (!overlappingSlots.length) {
+      throw new BadRequestException(`No overlapping slots found for ${startTime}-${endTime}`);
+    }
+
+    // Check for booked slots
+    const bookedSlots = overlappingSlots.filter((slot) => slot.status === TimeSlotStatus.BOOKED);
+    if (bookedSlots.length) {
+      throw new BadRequestException(
+        `Cannot delete range ${startTime}-${endTime}. Contains booked slots: ${bookedSlots
+          .map((s) => `${s.startTime}-${s.endTime}`)
+          .join(', ')}`,
+      );
+    }
+
+    let deletedCount = 0;
+    let modifiedCount = 0;
+
+    // Process each overlapping slot
+    overlappingSlots.forEach((slot) => {
+      const slotStart = this.timeToMinutes(slot.startTime);
+      const slotEnd = this.timeToMinutes(slot.endTime);
+
+      // Remove original slot
+      const index = availability.timeSlots.findIndex((s) => s === slot);
+      availability.timeSlots.splice(index, 1);
+      deletedCount++;
+
+      // Create remaining pieces
+      const remainingSlots: any = [];
+
+      // Before deletion range
+      if (slotStart < deleteStart) {
+        remainingSlots.push({
+          startTime: this.minutesToTime(slotStart),
+          endTime: this.minutesToTime(deleteStart),
+          status: slot.status,
+          bookingId: slot.bookingId,
+        });
+      }
+
+      // After deletion range
+      if (slotEnd > deleteEnd) {
+        remainingSlots.push({
+          startTime: this.minutesToTime(deleteEnd),
+          endTime: this.minutesToTime(slotEnd),
+          status: slot.status,
+          bookingId: slot.bookingId,
+        });
+      }
+
+      if (remainingSlots.length) {
+        availability.timeSlots.push(...remainingSlots);
+        modifiedCount += remainingSlots.length;
+      }
+    });
+
+    return { deleted: deletedCount, modified: modifiedCount };
+  }
+
+  /**
+   * Builds result message
+   */
+  private buildDeletedMessage(deleted: number, modified: number): string {
+    if (deleted && modified) return `Deleted ${deleted} slot(s), modified ${modified} slot(s)`;
+    if (deleted) return `Deleted ${deleted} slot(s)`;
+    if (modified) return `Modified ${modified} slot(s)`;
+    return 'No changes made';
+  }
+
+  // -----------------------------------------------------------------------------------------------
+
+  /**
+   * Deletes specific time slots from a day
+   */
+  async deleteTimesSlots(
     influencerId: string,
     date: Date,
     slotsToDelete: { startTime: string; endTime: string }[],
