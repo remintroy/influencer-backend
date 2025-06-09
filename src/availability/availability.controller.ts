@@ -1,9 +1,9 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, Query, Req } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiParam, ApiQuery, ApiTags, ApiResponse } from '@nestjs/swagger';
+import { BadRequestException, Body, Controller, Delete, Get, Param, Post, Put, Query, Req } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiParam, ApiQuery, ApiTags, ApiResponse, ApiBody } from '@nestjs/swagger';
 import { Request } from 'express';
 import { AvailabilityService } from './availability.service';
 import { CreateAvailabilityDto } from './dto/create-availability.dto';
-import { UpdateAvailabilityDto } from './dto/update-availability.dto';
+import { UpdateTimeSlotPortionDto } from './dto/update-portion-availability.dto';
 import { Roles } from '../common/decorators/role.decorator';
 import { UserRole } from '../user/schemas/user.schema';
 import { CheckAvailabilityDto } from './dto/check-availability.dto';
@@ -20,22 +20,102 @@ export class AvailabilityController {
     summary: 'Create availability for a date',
     description: 'Create availability slots for a specific date',
   })
+  @ApiBody({ type: CreateAvailabilityDto })
   @Roles(UserRole.INFLUENCER)
   async createAvailability(@Body() createAvailabilityDto: CreateAvailabilityDto, @Req() req: Request) {
     const influencerId = req?.user?.userId as string;
     return this.availabilityService.createOptimizedAvailability(createAvailabilityDto, influencerId);
   }
 
-  @Put(':id')
+  @Put('/date/:date/split-slot')
   @ApiOperation({
-    summary: 'Update availability',
-    description: 'Update availability slots for a specific date',
+    summary: 'Update portion of a time slot',
+    description:
+      'Update a specific portion of an existing time slot (splits the slot if needed). Useful for booking part of a larger available slot.',
   })
-  @ApiParam({ name: 'id', description: 'Availability ID' })
+  @ApiParam({
+    name: 'date',
+    description: 'Date in YYYY-MM-DD format',
+    example: '2024-12-25',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Time slot portion updated successfully',
+    schema: {
+      example: {
+        _id: '507f1f77bcf86cd799439011',
+        influencerId: '507f1f77bcf86cd799439012',
+        date: '2024-12-25T00:00:00.000Z',
+        timeSlots: [
+          {
+            startTime: '10:00',
+            endTime: '11:00',
+            status: 'available',
+            bookingId: null,
+          },
+          {
+            startTime: '11:00',
+            endTime: '12:00',
+            status: 'booked',
+            bookingId: '507f1f77bcf86cd799439013',
+          },
+          {
+            startTime: '12:00',
+            endTime: '13:00',
+            status: 'available',
+            bookingId: null,
+          },
+        ],
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad Request - Invalid input or validation errors',
+    schema: {
+      example: {
+        statusCode: 400,
+        message: 'No time slot found that contains 11:00-12:00',
+        error: 'Bad Request',
+      },
+    },
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Not Found - Availability not found for the date',
+    schema: {
+      example: {
+        statusCode: 404,
+        message: 'No availability found for date 2024-12-25',
+        error: 'Not Found',
+      },
+    },
+  })
   @Roles(UserRole.INFLUENCER)
-  async updateAvailability(@Param('id') id: string, @Body() updateAvailabilityDto: UpdateAvailabilityDto, @Req() req: Request) {
-    const influencerId = req?.user?.userId as string;
-    return this.availabilityService.updateAvailability(id, updateAvailabilityDto, influencerId);
+  async updateTimeSlotPortion(
+    @Param('date') date: string,
+    @Body() updateTimeSlotPortionDto: UpdateTimeSlotPortionDto,
+    @Req() req: Request,
+  ) {
+    // Validate that the requesting user can update this influencer's availability
+    const requestingUserId = req?.user?.userId as string;
+
+    // Parse and validate date
+    const parsedDate = new Date(date);
+    if (isNaN(parsedDate.getTime())) {
+      throw new BadRequestException('Invalid date format. Use YYYY-MM-DD');
+    }
+
+    return this.availabilityService.updateTimeSlotPortion(
+      requestingUserId,
+      parsedDate,
+      updateTimeSlotPortionDto.targetStartTime,
+      updateTimeSlotPortionDto.targetEndTime,
+      {
+        status: updateTimeSlotPortionDto.status,
+        bookingId: updateTimeSlotPortionDto.bookingId,
+      },
+    );
   }
 
   @Get(':influencerId/date/:date')

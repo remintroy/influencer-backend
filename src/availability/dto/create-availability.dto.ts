@@ -1,6 +1,6 @@
-import { IsArray, IsDate, IsEnum, IsMongoId, IsOptional, IsString, ValidateNested } from 'class-validator';
+import { IsArray, IsDate, IsEnum, IsString, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty } from '@nestjs/swagger';
 import { TimeSlotStatus } from '../schemas/availability.schema';
 
 export class TimeSlotDto {
@@ -22,6 +22,7 @@ export class TimeSlotDto {
     description: 'Status of the time slot',
     enum: TimeSlotStatus,
     example: TimeSlotStatus.AVAILABLE,
+    default: TimeSlotStatus.AVAILABLE,
   })
   @IsEnum(TimeSlotStatus)
   status: TimeSlotStatus;
@@ -30,7 +31,7 @@ export class TimeSlotDto {
 export class CreateAvailabilityDto {
   @ApiProperty({
     description: 'Date for which availability is being set',
-    example: '2024-03-20',
+    example: '2025-07-10',
   })
   @IsDate()
   @Type(() => Date)
@@ -44,11 +45,4 @@ export class CreateAvailabilityDto {
   @ValidateNested({ each: true })
   @Type(() => TimeSlotDto)
   timeSlots: TimeSlotDto[];
-
-  @ApiPropertyOptional({
-    description: 'Influencer ID (if not the authenticated user)',
-  })
-  @IsOptional()
-  @IsMongoId()
-  influencerId?: string;
-} 
+}

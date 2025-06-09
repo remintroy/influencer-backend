@@ -3,7 +3,6 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Availability, AvailabilityDocument, TimeSlot, TimeSlotStatus } from './schemas/availability.schema';
 import { CreateAvailabilityDto, TimeSlotDto } from './dto/create-availability.dto';
-import { UpdateAvailabilityDto, UpdateTimeSlotDto } from './dto/update-availability.dto';
 
 @Injectable()
 export class AvailabilityService {
@@ -42,7 +41,7 @@ export class AvailabilityService {
 
     const [hours, minutes] = time.split(':').map(Number);
 
-    return hours >= 0 && hours < 24 && minutes >= 0 && minutes < 60 && minutes % 30 === 0;
+    return hours >= 0 && hours < 24 && minutes >= 0 && minutes < 60;
   }
 
   /**
@@ -151,6 +150,9 @@ export class AvailabilityService {
 
       // Step 3: Check if availability already exists for this date
       const targetDate = new Date(date);
+
+      if (targetDate < new Date()) throw new BadRequestException('You cannot create time slot in past');
+
       const existingAvailability = await this.availabilityModel.findOne({
         influencerId: new Types.ObjectId(influencerId),
         date: targetDate,
@@ -194,100 +196,23 @@ export class AvailabilityService {
     }
   }
 
-  // ----------------------------------------------------------------------------------------------------------------------------------
-  // ----------------------------------------------------------------------------------------------------------------------------------
-
   /**
-   * Updates all time slots for a specific day
+   * Updates a portion of an existing time slot (splits the slot if needed)
    */
-  async updateDayTimeSlots(
+  async updateTimeSlotPortion(
     influencerId: string,
     date: Date,
-    timeSlots: (TimeSlot | any)[],
-    replaceAll: boolean = false,
-  ): Promise<Availability> {
-    try {
-      // Validate input parameters
-      if (!influencerId || !date) {
-        throw new BadRequestException('Influencer ID and date are required');
-      }
-
-      if (!timeSlots || timeSlots.length === 0) {
-        throw new BadRequestException('At least one time slot is required');
-      }
-
-      // Validate all new time slots
-      this.validateTimeSlots(timeSlots);
-
-      // Check for overlaps within new slots
-      this.validateNoOverlappingSlots(timeSlots);
-
-      // Find existing availability for the date
-      const targetDate = new Date(date);
-      const existingAvailability = await this.availabilityModel.findOne({
-        influencerId: new Types.ObjectId(influencerId),
-        date: targetDate,
-      });
-
-      if (!existingAvailability) {
-        throw new NotFoundException(`No availability found for date ${targetDate.toISOString().split('T')[0]}`);
-      }
-
-      if (replaceAll) {
-        // Replace all time slots for the day
-        existingAvailability.timeSlots = this.sortTimeSlots(
-          timeSlots.map((slot) => ({
-            startTime: slot.startTime,
-            endTime: slot.endTime,
-            status: slot.status || TimeSlotStatus.AVAILABLE,
-            bookingId: slot.bookingId ? new Types.ObjectId(slot.bookingId) : undefined,
-          })),
-        );
-      } else {
-        // Merge with existing slots (validate no overlaps with existing)
-        this.validateNoOverlapWithExisting(timeSlots, existingAvailability.timeSlots);
-        existingAvailability.timeSlots = this.mergeAndSortTimeSlots(existingAvailability.timeSlots, timeSlots);
-      }
-
-      return await existingAvailability.save();
-    } catch (error) {
-      if (error instanceof BadRequestException || error instanceof NotFoundException) {
-        throw error;
-      }
-
-      if (error.name === 'ValidationError') {
-        const validationErrors = Object.values(error.errors).map((err: any) => err.message);
-        throw new BadRequestException(`Validation failed: ${validationErrors.join(', ')}`);
-      }
-
-      throw new InternalServerErrorException('Failed to update day time slots');
-    }
-  }
-
-  /**
-   * Updates individual time slots within a specific day
-   */
-  async updateIndividualTimeSlots(
-    influencerId: string,
-    date: Date,
+    targetStartTime: string,
+    targetEndTime: string,
     updates: {
-      originalSlot: { startTime: string; endTime: string };
-      updatedSlot: {
-        startTime?: string;
-        endTime?: string;
-        status?: TimeSlotStatus;
-        bookingId?: string;
-      };
-    }[],
+      status?: TimeSlotStatus;
+      bookingId?: string;
+    },
   ): Promise<Availability> {
     try {
       // Validate input parameters
       if (!influencerId || !date) {
         throw new BadRequestException('Influencer ID and date are required');
-      }
-
-      if (!updates || updates.length === 0) {
-        throw new BadRequestException('At least one update is required');
       }
 
       // Find existing availability for the date
@@ -301,53 +226,64 @@ export class AvailabilityService {
         throw new NotFoundException(`No availability found for date ${targetDate.toISOString().split('T')[0]}`);
       }
 
-      // Process each update
-      for (const update of updates) {
-        const { originalSlot, updatedSlot } = update;
+      // Find the slot that contains the target time range
+      const containingSlotIndex = existingAvailability.timeSlots.findIndex((slot) => {
+        return slot.startTime <= targetStartTime && slot.endTime >= targetEndTime;
+      });
 
-        // Find the slot to update
-        const slotIndex = existingAvailability.timeSlots.findIndex(
-          (slot) => slot.startTime === originalSlot.startTime && slot.endTime === originalSlot.endTime,
-        );
-
-        if (slotIndex === -1) {
-          throw new BadRequestException(`Time slot ${originalSlot.startTime}-${originalSlot.endTime} not found`);
-        }
-
-        const currentSlot = existingAvailability.timeSlots[slotIndex];
-
-        // Check if slot is booked and trying to change times
-        if (currentSlot.status === TimeSlotStatus.BOOKED && (updatedSlot.startTime || updatedSlot.endTime)) {
-          throw new BadRequestException(`Cannot modify time for booked slot ${originalSlot.startTime}-${originalSlot.endTime}`);
-        }
-
-        // Create updated slot with current values as defaults
-        const newSlot = {
-          startTime: updatedSlot.startTime || currentSlot.startTime,
-          endTime: updatedSlot.endTime || currentSlot.endTime,
-          status: updatedSlot.status !== undefined ? updatedSlot.status : currentSlot.status,
-          bookingId:
-            updatedSlot.bookingId !== undefined
-              ? updatedSlot.bookingId
-                ? new Types.ObjectId(updatedSlot.bookingId)
-                : undefined
-              : currentSlot.bookingId,
-        };
-
-        // Validate new slot if time has changed
-        if (updatedSlot.startTime || updatedSlot.endTime) {
-          this.validateTimeSlots([newSlot]);
-
-          // Check for overlaps with other slots (excluding the current slot being updated)
-          const otherSlots = existingAvailability.timeSlots.filter((_, index) => index !== slotIndex);
-          this.validateNoOverlapWithExisting([newSlot], otherSlots);
-        }
-
-        // Update the slot
-        existingAvailability.timeSlots[slotIndex] = newSlot;
+      if (containingSlotIndex === -1) {
+        throw new BadRequestException(`No time slot found that contains ${targetStartTime}-${targetEndTime}`);
       }
 
-      // Sort slots after all updates
+      const containingSlot = existingAvailability.timeSlots[containingSlotIndex];
+
+      // Check if the containing slot is already booked (and we're trying to book part of it)
+      if (containingSlot.status === TimeSlotStatus.BOOKED && updates.status === TimeSlotStatus.BOOKED) {
+        throw new BadRequestException(`Time slot ${targetStartTime}-${targetEndTime} is already booked`);
+      }
+
+      // Remove the original slot
+      existingAvailability.timeSlots.splice(containingSlotIndex, 1);
+
+      const newSlots: any = [];
+
+      // Add slot before target (if exists)
+      if (containingSlot.startTime < targetStartTime) {
+        newSlots.push({
+          startTime: containingSlot.startTime,
+          endTime: targetStartTime,
+          status: containingSlot.status,
+          bookingId: containingSlot.bookingId,
+        });
+      }
+
+      // Add the target slot with updates
+      newSlots.push({
+        startTime: targetStartTime,
+        endTime: targetEndTime,
+        status: updates.status !== undefined ? updates.status : containingSlot.status,
+        bookingId:
+          updates.bookingId !== undefined
+            ? updates.bookingId
+              ? new Types.ObjectId(updates.bookingId)
+              : undefined
+            : containingSlot.bookingId,
+      });
+
+      // Add slot after target (if exists)
+      if (containingSlot.endTime > targetEndTime) {
+        newSlots.push({
+          startTime: targetEndTime,
+          endTime: containingSlot.endTime,
+          status: containingSlot.status,
+          bookingId: containingSlot.bookingId,
+        });
+      }
+
+      // Add new slots to the availability
+      existingAvailability.timeSlots.push(...newSlots);
+
+      // Sort slots
       existingAvailability.timeSlots = this.sortTimeSlots(existingAvailability.timeSlots);
 
       return await existingAvailability.save();
@@ -361,9 +297,12 @@ export class AvailabilityService {
         throw new BadRequestException(`Validation failed: ${validationErrors.join(', ')}`);
       }
 
-      throw new InternalServerErrorException('Failed to update individual time slots');
+      throw new InternalServerErrorException('Failed to update time slot portion');
     }
   }
+
+  // ----------------------------------------------------------------------------------------------------------------------------------
+  // ----------------------------------------------------------------------------------------------------------------------------------
 
   /**
    * Deletes specific time slots from a day
@@ -449,122 +388,6 @@ export class AvailabilityService {
     const endMinutes = endHour * 60 + endMin;
 
     return endMinutes - startMinutes === 30;
-  }
-
-  private mergeTimeSlots(existingSlots: TimeSlot[], newSlots: (TimeSlot | UpdateTimeSlotDto)[]): TimeSlot[] {
-    // Create a map of existing slots for easy lookup
-    const slotMap = new Map<string, TimeSlot>();
-    existingSlots.forEach((slot) => {
-      slotMap.set(slot.startTime, slot);
-    });
-
-    // Update or add new slots
-    newSlots.forEach((slot) => {
-      slotMap.set(slot.startTime, {
-        ...slot,
-        bookingId: slot.bookingId ? new Types.ObjectId(slot.bookingId) : undefined,
-      });
-    });
-
-    // Convert map back to array and sort by start time
-    return Array.from(slotMap.values()).sort((a, b) => a.startTime.localeCompare(b.startTime));
-  }
-
-  async createAvailability(createAvailabilityDto: CreateAvailabilityDto, influencerId: string): Promise<Availability> {
-    try {
-      const { date, timeSlots } = createAvailabilityDto;
-
-      // Check if availability already exists for this date
-      const existingAvailability = await this.availabilityModel.findOne({
-        influencerId: new Types.ObjectId(influencerId),
-        date: new Date(date),
-      });
-
-      if (existingAvailability) {
-        // If availability exists, merge the new slots with existing ones
-        const mergedSlots = this.mergeTimeSlots(existingAvailability.timeSlots, timeSlots);
-        existingAvailability.timeSlots = mergedSlots;
-        return existingAvailability.save();
-      }
-
-      // Validate time slots if provided
-      if (timeSlots) {
-        for (const slot of timeSlots) {
-          if (!this.validateTimeSlot(slot.startTime, slot.endTime)) {
-            throw new BadRequestException(
-              `Invalid time slot: ${slot.startTime} - ${slot.endTime}. Slots must be exactly 30 minutes long.`,
-            );
-          }
-        }
-      }
-
-      // Create new availability with provided time slots
-      const availability = new this.availabilityModel({
-        influencerId: new Types.ObjectId(influencerId),
-        date: new Date(date),
-        timeSlots: timeSlots || [],
-      });
-
-      return await availability.save();
-    } catch (error) {
-      if (error.name === 'ValidationError') {
-        const validationErrors = Object.values(error.errors).map((err: any) => err.message);
-        throw new BadRequestException(validationErrors.join(', '));
-      }
-      if (error.name === 'CastError') {
-        throw new BadRequestException(`Invalid ${error.path}: ${error.value}`);
-      }
-      throw new InternalServerErrorException('An error occurred while creating availability');
-    }
-  }
-
-  async updateAvailability(
-    id: string,
-    updateAvailabilityDto: UpdateAvailabilityDto,
-    influencerId: string,
-  ): Promise<Availability> {
-    try {
-      const availability = await this.availabilityModel.findOne({
-        _id: new Types.ObjectId(id),
-        influencerId: new Types.ObjectId(influencerId),
-      });
-
-      if (!availability) {
-        throw new NotFoundException('Availability not found');
-      }
-
-      if (updateAvailabilityDto.timeSlots) {
-        // Validate all time slots before updating
-        for (const slot of updateAvailabilityDto.timeSlots) {
-          if (!this.validateTimeSlot(slot.startTime, slot.endTime)) {
-            throw new BadRequestException(
-              `Invalid time slot: ${slot.startTime} - ${slot.endTime}. Slots must be exactly 30 minutes long.`,
-            );
-          }
-        }
-
-        // Merge the updated slots with existing ones
-        availability.timeSlots = this.mergeTimeSlots(availability.timeSlots, updateAvailabilityDto.timeSlots);
-      }
-
-      if (updateAvailabilityDto.isActive !== undefined) {
-        availability.isActive = updateAvailabilityDto.isActive;
-      }
-
-      return await availability.save();
-    } catch (error) {
-      if (error.name === 'ValidationError') {
-        const validationErrors = Object.values(error.errors).map((err: any) => err.message);
-        throw new BadRequestException(validationErrors.join(', '));
-      }
-      if (error.name === 'CastError') {
-        throw new BadRequestException(`Invalid ${error.path}: ${error.value}`);
-      }
-      if (error instanceof NotFoundException) {
-        throw error;
-      }
-      throw new InternalServerErrorException('An error occurred while updating availability');
-    }
   }
 
   async getAvailabilityByDate(date: Date, influencerId: string): Promise<Availability> {
