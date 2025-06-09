@@ -212,12 +212,17 @@ export class AuthService {
 
       await this.userService.updateUser(newUser?._id + '', { meta: { welcomeMailWithPasswordSent: true } });
 
-      if (newUser?.email && !(await this.emailService.sendOtp(newUser?.email!, otp))) {
-        throw new BadRequestException('Failed to send SMS OTP');
+      if (newUser?.email) {
+        try {
+          await this.emailService.sendOtp(newUser?.email!, otp);
+        } catch {
+          throw new BadRequestException('Failed to send SMS OTP');
+        }
       }
 
-      if (newUser?.phoneNumber && !(await this.smsService.sendOtp(newUser.phoneNumber!, otp))) {
-        throw new BadRequestException('Failed to send EMAIL OTP');
+      if (newUser?.phoneNumber) {
+        const send = await this.smsService.sendOtp(newUser.phoneNumber!, otp);
+        if (!send) throw new BadRequestException('Failed to send EMAIL OTP');
       }
 
       return {
