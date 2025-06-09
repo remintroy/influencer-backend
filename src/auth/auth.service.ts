@@ -65,8 +65,9 @@ export class AuthService {
 
   async generateOtp(userId: string, options?: { userAgent?: string; ipAddress?: string }): Promise<string> {
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otpHash = bcrypt.hash(otp, 10);
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
-    this.otpModel.create({ otp, expiresAt, userId, userAgent: options?.userAgent, ipAddress: options?.ipAddress });
+    this.otpModel.create({ otp: otpHash, expiresAt, userId, userAgent: options?.userAgent, ipAddress: options?.ipAddress });
     return otp;
   }
 
@@ -176,7 +177,7 @@ export class AuthService {
   }
 
   async signUp(reqData: SignupUserDto, res: Response, userAgent?: string) {
-    if (!reqData?.email || !reqData?.phoneNumber) {
+    if (!reqData?.email && !reqData?.phoneNumber) {
       throw new BadRequestException('Email or PhoneNumber is required');
     }
 
@@ -211,8 +212,13 @@ export class AuthService {
 
       await this.userService.updateUser(newUser?._id + '', { meta: { welcomeMailWithPasswordSent: true } });
 
-      if (newUser?.phoneNumber) await this.smsService.sendOtp(newUser.phoneNumber!, otp);
-      if (newUser?.email) await this.emailService.sendOtp(newUser?.email!, otp);
+      if (newUser?.email && !(await this.emailService.sendOtp(newUser?.email!, otp))) {
+        throw new BadRequestException('Failed to send SMS OTP');
+      }
+
+      if (newUser?.phoneNumber && !(await this.smsService.sendOtp(newUser.phoneNumber!, otp))) {
+        throw new BadRequestException('Failed to send EMAIL OTP');
+      }
 
       return {
         success: true,
@@ -248,9 +254,11 @@ export class AuthService {
 
     if (userData?.meta?.isVerified) throw new UnauthorizedException('User already verified');
 
-    const optData = await this.otpModel.findOne({ userId: userData?._id, otp });
+    const optData = await this.otpModel.findOne({ userId: userData?._id })?.sort({ _id: -1 });
 
-    if (!optData || new Date(optData?.expiresAt as Date) < new Date()) {
+    const otpMatched = await bcrypt.compare(otp, optData?.otp + '');
+
+    if (!otpMatched || new Date(optData?.expiresAt as Date) < new Date()) {
       throw new UnauthorizedException('Invalid Otp or Otp expired');
     }
 
