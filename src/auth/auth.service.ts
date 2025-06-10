@@ -216,13 +216,13 @@ export class AuthService {
         try {
           await this.emailService.sendOtp(newUser?.email!, otp);
         } catch {
-          throw new BadRequestException('Failed to send SMS OTP');
+          throw new BadRequestException('Failed to send EMAIL OTP');
         }
       }
 
       if (newUser?.phoneNumber) {
         const send = await this.smsService.sendOtp(newUser.phoneNumber!, otp);
-        if (!send) throw new BadRequestException('Failed to send EMAIL OTP');
+        if (!send) throw new BadRequestException('Failed to send SMS OTP');
       }
 
       return {
