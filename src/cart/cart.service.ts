@@ -39,11 +39,7 @@ export class CartService {
     return endMinutes - startMinutes === 30;
   }
 
-  private async validateServiceAndTimeSlot(
-    serviceId: string,
-    influencerId: string,
-    timeSlot?: TimeSlot,
-  ): Promise<ServiceData> {
+  private async validateServiceAndTimeSlot(serviceId: string, influencerId: string, timeSlot?: TimeSlot): Promise<ServiceData> {
     const service = await this.influencerServiceService.getInfluencerServiceByServiceId(serviceId);
     if (!service) {
       throw new NotFoundException('Service not found');
@@ -66,7 +62,7 @@ export class CartService {
       }
 
       // Check if the time slot is available
-      const isAvailable = await this.availabilityService.checkInfluencerAvailability(
+      const { isAvailable } = await this.availabilityService.checkInfluencerAvailability(
         influencerId,
         timeSlot.date,
         timeSlot.startTime,
@@ -137,12 +133,7 @@ export class CartService {
     return cart.save();
   }
 
-  async updateCartItem(
-    userId: string,
-    itemIndex: number,
-    quantity: number,
-    timeSlot?: TimeSlot,
-  ): Promise<CartDocument> {
+  async updateCartItem(userId: string, itemIndex: number, quantity: number, timeSlot?: TimeSlot): Promise<CartDocument> {
     const cart = await this.getCart(userId);
     if (!cart.items[itemIndex]) {
       throw new NotFoundException('Cart item not found');
@@ -159,7 +150,7 @@ export class CartService {
       }
 
       // Check if the time slot is available
-      const isAvailable = await this.availabilityService.checkInfluencerAvailability(
+      const { isAvailable } = await this.availabilityService.checkInfluencerAvailability(
         item.influencerId.toString(),
         timeSlot.date,
         timeSlot.startTime,
