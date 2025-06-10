@@ -65,7 +65,7 @@ export class AuthService {
 
   async generateOtp(userId: string, options?: { userAgent?: string; ipAddress?: string }): Promise<string> {
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const otpHash = bcrypt.hash(otp, 10);
+    const otpHash = await bcrypt.hash(otp, 10);
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
     this.otpModel.create({ otp: otpHash, expiresAt, userId, userAgent: options?.userAgent, ipAddress: options?.ipAddress });
     return otp;
@@ -198,9 +198,9 @@ export class AuthService {
 
     const password = await this.createPasswordHash(reqData?.password);
     const newUser = await this.userService.createUserSudo({
-      email: reqData?.email,
+      ...(reqData?.email ? { email: reqData?.email } : {}),
+      ...(reqData?.phoneNumber ? { phoneNumber: reqData?.phoneNumber } : {}),
       role: UserRole.USER,
-      phoneNumber: reqData?.phoneNumber,
       profileImage: reqData?.profileImage,
       password,
     });

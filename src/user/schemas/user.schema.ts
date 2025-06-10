@@ -35,7 +35,7 @@ export class User {
   role: UserRole;
 
   @Prop({ unique: true, sparse: true, lowercase: true, trim: true })
-  email: string;
+  email?: string;
 
   @Prop({ unique: true, sparse: true })
   phoneNumber?: string;
