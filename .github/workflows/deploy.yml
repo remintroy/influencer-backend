@@ -22,8 +22,11 @@ jobs:
 
       - name: Copy build files
         run: |
-          scp -o StrictHostKeyChecking=accept-new -i "~/secret.pem" -r dist  ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:nest-backend/
-          scp -i "~/secret.pem" package*.json pnpm*.yaml  ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:nest-backend/
+          shopt -s globstar
+          tar -czf - dist/**/*.js package.json pnpm-lock.yaml \
+          | ssh -o StrictHostKeyChecking=accept-new -i ~/secret.pem \
+          ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} \
+          'tar -xzf - -C nest-backend/'
 
       - name: SSH into EC2 instance and restarting server
         run: |
