@@ -1,11 +1,17 @@
 import { Body, Controller, Delete, Get, Param, Post, Put, Query, Req } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
-import { UserRole } from 'src/user/schemas/user.schema';
+import { User, UserRole } from 'src/user/schemas/user.schema';
 import { UpdateInfluencerServiceDto } from './dto/update-influencer-service.dto';
 import { CreateInfluencerServiceDto } from './dto/create-influencer-service.dto';
 import { InfluencerServiceService } from './influencer-service.service';
 import { Roles } from 'src/common/decorators/role.decorator';
+import {
+  ConvertToCollaborationServiceDto,
+  CreateCollaborationServiceDto,
+  ManageCollaborationUsersDto,
+} from './dto/collaboration-service.dto';
+import { ServiceType } from './schemas/influencer-service.schema';
 
 @ApiTags('Influencer services')
 @ApiBearerAuth('access-token')
@@ -21,7 +27,7 @@ export class InfluencerServiceController {
   @Roles(UserRole.INFLUENCER)
   async createInfluencerService(@Req() req: Request, @Body() data: CreateInfluencerServiceDto) {
     const createdUserId = req?.user?.userId as string;
-    return this.influencerServiceService.createInfluencerService(createdUserId, data);
+    return this.influencerServiceService.createInfluencerService(createdUserId, { ...data, type: ServiceType.INDIVIDUAL });
   }
 
   @Get('/influencer/:influencerId')
@@ -47,11 +53,68 @@ export class InfluencerServiceController {
   })
   @ApiQuery({ name: 'page', required: false, description: 'Page number for pagination' })
   @ApiQuery({ name: 'limit', required: false, description: 'Number of items per page' })
-  async getCollaborationServices(
-    @Query('page') page: number,
-    @Query('limit') limit: number,
-  ) {
+  async getCollaborationServices(@Query('page') page: number, @Query('limit') limit: number) {
     return await this.influencerServiceService.getCollaborationServices({ page, limit });
+  }
+
+  @Post('/collaboration')
+  @ApiOperation({
+    summary: 'Admin only - Create a new collaboration service',
+    description: 'Admin can create a collaboration service and assign multiple influencers to it',
+  })
+  @ApiBody({ type: CreateCollaborationServiceDto })
+  @Roles(UserRole.ADMIN)
+  async createCollaborationService(@Req() req: Request, @Body() createCollaborationDto: CreateCollaborationServiceDto) {
+    return await this.influencerServiceService.createCollaborationService(req.user?.userId!, createCollaborationDto);
+  }
+
+  /**
+   * Admin only - Convert existing service to collaboration
+   * Allows admin to convert individual services to collaboration type and add users
+   */
+  @Put('/collaborations/:serviceId/convert')
+  @ApiOperation({ summary: 'Admin only - Convert service to collaboration' })
+  @Roles(UserRole.ADMIN)
+  async convertToCollaborationService(
+    @Req() req: Request,
+    @Param('serviceId') serviceId: string,
+    @Body() convertDto: ConvertToCollaborationServiceDto,
+  ) {
+    return await this.influencerServiceService.convertToCollaborationService(
+      req.user?.userId!,
+      serviceId,
+      convertDto.additionalUserIds || [],
+    );
+  }
+
+  /**
+   * Admin only - Add users to existing collaboration service
+   * Allows admin to add influencers to collaboration services
+   */
+  @Put('/collaborations/:serviceId/add-users')
+  @ApiOperation({ summary: 'Admin only - Add users to collaboration service' })
+  @Roles(UserRole.ADMIN)
+  async addUsersToCollaborationService(
+    @Req() req: Request,
+    @Param('serviceId') serviceId: string,
+    @Body() body: ManageCollaborationUsersDto,
+  ) {
+    return await this.influencerServiceService.addUsersToCollaborationService(req.user?.userId!, serviceId, body.userIds);
+  }
+
+  /**
+   * Admin only - Remove users from collaboration service
+   * Allows admin to remove influencers from collaboration services
+   */
+  @Put('/collaborations/:serviceId/remove-users')
+  @ApiOperation({ summary: 'Admin only - Remove users from collaboration service' })
+  @Roles(UserRole.ADMIN)
+  async removeUsersFromCollaborationService(
+    @Req() req: Request,
+    @Param('serviceId') serviceId: string,
+    @Body() body: ManageCollaborationUsersDto,
+  ) {
+    return await this.influencerServiceService.removeUsersFromCollaborationService(req.user?.userId!, serviceId, body.userIds);
   }
 
   @Put('/:serviceId')
