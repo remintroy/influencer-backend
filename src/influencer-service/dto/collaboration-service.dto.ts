@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsArray, IsString, ArrayMinSize, IsOptional, IsEnum } from 'class-validator';
 import { CreateInfluencerServiceDto } from './create-influencer-service.dto';
 import { ServiceType } from '../schemas/influencer-service.schema';
@@ -11,6 +11,22 @@ export class CreateCollaborationServiceDto extends CreateInfluencerServiceDto {
   })
   @IsEnum(ServiceType)
   declare type: ServiceType.COLLABORATION;
+
+  @ApiPropertyOptional({
+    description: 'Collaboration details for collaboration type services',
+    type: Object,
+    example: {
+      title: 'Joint Marketing Campaign',
+      images: ['https://example.com/image1.jpg', 'https://example.com/image2.jpg'],
+      description: 'A collaborative marketing campaign',
+    },
+  })
+  @IsOptional()
+  collaborationDetails?: {
+    title?: string;
+    images?: string[];
+    description?: string;
+  };
 }
 
 export class ConvertToCollaborationServiceDto {

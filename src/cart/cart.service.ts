@@ -21,29 +21,9 @@ export class CartService {
     private influencerServiceService: InfluencerServiceService,
   ) {}
 
-  private validateTimeFormat(time: string): boolean {
-    const timeRegex = /^([01]?[0-9]|2[0-3]):[0-3]0$/;
-    return timeRegex.test(time);
-  }
-
-  private validateTimeSlot(startTime: string, endTime: string): boolean {
-    if (!this.validateTimeFormat(startTime) || !this.validateTimeFormat(endTime)) {
-      return false;
-    }
-
-    const [startHour, startMin] = startTime.split(':').map(Number);
-    const [endHour, endMin] = endTime.split(':').map(Number);
-    const startMinutes = startHour * 60 + startMin;
-    const endMinutes = endHour * 60 + endMin;
-
-    return endMinutes - startMinutes === 30;
-  }
-
   private async validateServiceAndTimeSlot(serviceId: string, influencerId: string, timeSlot?: TimeSlot): Promise<ServiceData> {
     const service = await this.influencerServiceService.getInfluencerServiceByServiceId(serviceId);
-    if (!service) {
-      throw new NotFoundException('Service not found');
-    }
+    if (!service) throw new NotFoundException('Service not found');
 
     const serviceData: ServiceData = {
       requiresTimeSlot: service.requireTimeSlot ?? false,
@@ -57,9 +37,7 @@ export class CartService {
     }
 
     if (timeSlot) {
-      if (!this.validateTimeSlot(timeSlot.startTime, timeSlot.endTime)) {
-        throw new BadRequestException('Invalid time slot format. Must be 30-minute intervals');
-      }
+      await this.availabilityService.validateTimeSlots([timeSlot]);
 
       // Check if the time slot is available
       const { isAvailable } = await this.availabilityService.checkInfluencerAvailability(
@@ -145,9 +123,7 @@ export class CartService {
     }
 
     if (timeSlot) {
-      if (!this.validateTimeSlot(timeSlot.startTime, timeSlot.endTime)) {
-        throw new BadRequestException('Invalid time slot format. Must be 30-minute intervals');
-      }
+      await this.availabilityService.validateTimeSlots([timeSlot]);
 
       // Check if the time slot is available
       const { isAvailable } = await this.availabilityService.checkInfluencerAvailability(

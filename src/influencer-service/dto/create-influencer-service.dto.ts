@@ -42,18 +42,12 @@ export class CreateInfluencerServiceDto {
   price?: number;
 
   @ApiPropertyOptional({
-    description: 'Collaboration details for collaboration type services',
-    type: Object,
-    example: {
-      title: 'Joint Marketing Campaign',
-      images: ['https://example.com/image1.jpg', 'https://example.com/image2.jpg'],
-      description: 'A collaborative marketing campaign',
-    },
+    description: 'Time required for the service in minutes for time slot',
+    example: 30,
+    default: 0,
   })
   @IsOptional()
-  collaborationDetails?: {
-    title?: string;
-    images?: string[];
-    description?: string;
-  };
+  @IsNumber()
+  @Min(0)
+  duration?: number;
 }

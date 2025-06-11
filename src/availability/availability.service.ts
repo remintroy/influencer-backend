@@ -26,7 +26,7 @@ export class AvailabilityService {
   /**
    * Validates individual time slots for correct format and duration
    */
-  private validateTimeSlots(timeSlots: (TimeSlot | any)[]): void {
+  validateTimeSlots(timeSlots: (TimeSlot | any)[]) {
     for (const slot of timeSlots) {
       if (!slot.startTime || !slot.endTime) {
         throw new BadRequestException('Each time slot must have startTime and endTime');

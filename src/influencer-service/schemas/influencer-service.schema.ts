@@ -8,7 +8,7 @@ export type InfluencerServicePaginationResponse = PaginationResponse<Partial<Inf
 
 export enum ServiceType {
   INDIVIDUAL = 'individual',
-  COLLABORATION = 'collaboration'
+  COLLABORATION = 'collaboration',
 }
 
 @Schema({ timestamps: true })
@@ -38,6 +38,9 @@ export class InfluencerServices {
 
   @Prop({ default: false, type: Boolean })
   requireTimeSlot?: boolean;
+
+  @Prop({ default: 0, type: Number })
+  duration?: number;
 
   // Collaboration specific fields
   @Prop({ type: Object })
