@@ -1,55 +1,31 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsMongoId, IsNumber, IsOptional, IsString, Min, ValidateIf } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
+import { IsDate, IsMongoId, IsNotEmpty, IsNumber, IsString, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 
-export class TimeSlotDto {
-  @ApiProperty({ description: 'Date for the time slot', example: '2024-03-20' })
+export class AddToCartDto {
+  @ApiProperty({ description: 'ID of the service to add to cart' })
+  @IsMongoId()
+  @IsNotEmpty()
+  serviceId: string;
+
+  @ApiProperty({ description: 'Date for the booking', example: '2024-03-20' })
+  @IsDate()
   @Type(() => Date)
-  date: Date;
+  @IsNotEmpty()
+  bookingDate: Date;
 
   @ApiProperty({ description: 'Start time in HH:mm format', example: '09:00' })
   @IsString()
+  @IsNotEmpty()
   startTime: string;
 
   @ApiProperty({ description: 'End time in HH:mm format', example: '09:30' })
   @IsString()
+  @IsNotEmpty()
   endTime: string;
-}
 
-export class AddToCartDto {
-  @ApiProperty({ description: 'ID of the influencer service' })
-  @IsMongoId()
-  serviceId: string;
-
-  @ApiProperty({ description: 'ID of the influencer' })
-  @IsMongoId()
-  influencerId: string;
-
-  @ApiProperty({ description: 'Quantity of the service', minimum: 1 })
-  @IsNumber()
-  @Min(1)
-  quantity: number;
-
-  @ApiProperty({ description: 'Whether the service requires a time slot' })
-  requiresTimeSlot: boolean;
-
-  @ApiPropertyOptional({ description: 'Time slot details if required', type: TimeSlotDto })
-  @ValidateIf(o => o.requiresTimeSlot === true)
-  @Type(() => TimeSlotDto)
-  timeSlot?: TimeSlotDto;
-
-  @ApiProperty({ description: 'Price of the service', minimum: 0 })
+  @ApiProperty({ description: 'Price of the service' })
   @IsNumber()
   @Min(0)
   price: number;
-
-  @ApiPropertyOptional({ description: 'Title of the service' })
-  @IsOptional()
-  @IsString()
-  title?: string;
-
-  @ApiPropertyOptional({ description: 'Description of the service' })
-  @IsOptional()
-  @IsString()
-  description?: string;
 } 

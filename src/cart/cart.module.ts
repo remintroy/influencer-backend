@@ -3,28 +3,17 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { CartController } from './cart.controller';
 import { CartService } from './cart.service';
 import { Cart, CartSchema } from './schemas/cart.schema';
-import { UserModule } from 'src/user/user.module';
-import { InfluencerServiceModule } from 'src/influencer-service/influencer-service.module';
-import { User, UserSchema } from 'src/user/schemas/user.schema';
-import { AvailabilityService } from 'src/availability/availability.service';
-import { Availability, AvailabilitySchema } from 'src/availability/schemas/availability.schema';
-import { InfluencerServiceService } from 'src/influencer-service/influencer-service.service';
-import { InfluencerServices, InfluencerServicesSchema } from 'src/influencer-service/schemas/influencer-service.schema';
-import { UserService } from 'src/user/user.service';
+import { InfluencerServiceModule } from '../influencer-service/influencer-service.module';
+import { AvailabilityModule } from '../availability/availability.module';
 
 @Module({
   imports: [
-    UserModule,
+    MongooseModule.forFeature([{ name: Cart.name, schema: CartSchema }]),
     InfluencerServiceModule,
-    MongooseModule.forFeature([
-      { name: Cart.name, schema: CartSchema },
-      { name: User.name, schema: UserSchema },
-      { name: Availability.name, schema: AvailabilitySchema },
-      { name: InfluencerServices.name, schema: InfluencerServicesSchema },
-    ]),
+    AvailabilityModule,
   ],
   controllers: [CartController],
-  providers: [CartService, AvailabilityService, InfluencerServiceService, UserService],
+  providers: [CartService],
   exports: [CartService],
 })
 export class CartModule {}

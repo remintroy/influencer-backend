@@ -1,169 +1,173 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { Cart, CartDocument, CartItem, TimeSlot } from './schemas/cart.schema';
+import { Cart, CartDocument, CartItem } from './schemas/cart.schema';
 import { AddToCartDto } from './dto/add-to-cart.dto';
-import { AvailabilityService } from '../availability/availability.service';
 import { InfluencerServiceService } from '../influencer-service/influencer-service.service';
-
-interface ServiceData {
-  requiresTimeSlot: boolean;
-  price: number;
-  title?: string;
-  description?: string;
-}
+import { AvailabilityService } from '../availability/availability.service';
 
 @Injectable()
 export class CartService {
   constructor(
     @InjectModel(Cart.name) private cartModel: Model<CartDocument>,
-    private availabilityService: AvailabilityService,
-    private influencerServiceService: InfluencerServiceService,
+    private readonly influencerServiceService: InfluencerServiceService,
+    private readonly availabilityService: AvailabilityService,
   ) {}
 
-  private async validateServiceAndTimeSlot(serviceId: string, influencerId: string, timeSlot?: TimeSlot): Promise<ServiceData> {
-    const service = await this.influencerServiceService.getInfluencerServiceByServiceId(serviceId);
-    if (!service) throw new NotFoundException('Service not found');
-
-    const serviceData: ServiceData = {
-      requiresTimeSlot: service.requireTimeSlot ?? false,
-      price: service.price ?? 0,
-      title: service.title,
-      description: service.description,
-    };
-
-    if (serviceData.requiresTimeSlot && !timeSlot) {
-      throw new BadRequestException('Time slot is required for this service');
+  async getOrCreateCart(userId: string): Promise<CartDocument> {
+    const cart = await this.cartModel.findOne({ userId: new Types.ObjectId(userId) });
+    if (cart) {
+      // Check and update disabled status of items
+      await this.checkAndUpdateDisabledItems(cart);
+      return cart;
     }
 
-    if (timeSlot) {
-      await this.availabilityService.validateTimeSlots([timeSlot]);
-
-      // Check if the time slot is available
-      const { isAvailable } = await this.availabilityService.checkInfluencerAvailability(
-        influencerId,
-        timeSlot.date,
-        timeSlot.startTime,
-        timeSlot.endTime,
-      );
-
-      if (!isAvailable) {
-        throw new BadRequestException('Selected time slot is not available');
-      }
-    }
-
-    return serviceData;
-  }
-
-  async getCart(userId: string): Promise<CartDocument> {
-    const cart = await this.cartModel.findOne({ userId: new Types.ObjectId(userId), isActive: true });
-    if (!cart) {
-      return this.cartModel.create({ userId: new Types.ObjectId(userId) });
-    }
-    return cart;
+    return await this.cartModel.create({
+      userId: new Types.ObjectId(userId),
+      items: [],
+      totalAmount: 0,
+    });
   }
 
   async addToCart(userId: string, addToCartDto: AddToCartDto): Promise<CartDocument> {
-    const { serviceId, influencerId, quantity, timeSlot, price, title, description } = addToCartDto;
-
-    // Validate service and time slot
-    const serviceData = await this.validateServiceAndTimeSlot(serviceId, influencerId, timeSlot);
-
     // Get or create cart
-    let cart = await this.cartModel.findOne({ userId: new Types.ObjectId(userId), isActive: true });
-    if (!cart) {
-      cart = await this.cartModel.create({ userId: new Types.ObjectId(userId) });
+    const cart = await this.getOrCreateCart(userId);
+
+    // Validate service exists
+    const service = await this.influencerServiceService.getInfluencerServiceByServiceId(addToCartDto.serviceId);
+    if (!service) {
+      throw new NotFoundException('Service not found');
     }
 
-    // Check if item already exists in cart
-    const existingItemIndex = cart.items.findIndex(
-      (item) =>
-        item.serviceId.toString() === serviceId &&
-        (!item.timeSlot || !timeSlot || item.timeSlot.date.getTime() === timeSlot.date.getTime()),
-    );
-
-    if (existingItemIndex > -1) {
-      // Update existing item
-      cart.items[existingItemIndex].quantity += quantity;
-    } else {
-      // Add new item
-      cart.items.push({
-        serviceId: new Types.ObjectId(serviceId),
-        influencerId: new Types.ObjectId(influencerId),
-        quantity,
-        requiresTimeSlot: serviceData.requiresTimeSlot,
-        timeSlot: timeSlot
-          ? {
-              date: timeSlot.date,
-              startTime: timeSlot.startTime,
-              endTime: timeSlot.endTime,
-            }
-          : undefined,
-        price: serviceData.price,
-        title: serviceData.title,
-        description: serviceData.description,
-      });
-    }
-
-    // Update total amount
-    cart.totalAmount = cart.items.reduce((total, item) => total + item.price * item.quantity, 0);
-
-    return cart.save();
-  }
-
-  async updateCartItem(userId: string, itemIndex: number, quantity: number, timeSlot?: TimeSlot): Promise<CartDocument> {
-    const cart = await this.getCart(userId);
-    if (!cart.items[itemIndex]) {
-      throw new NotFoundException('Cart item not found');
-    }
-
-    const item = cart.items[itemIndex];
-    if (item.requiresTimeSlot && !timeSlot) {
-      throw new BadRequestException('Time slot is required for this service');
-    }
-
-    if (timeSlot) {
-      await this.availabilityService.validateTimeSlots([timeSlot]);
-
-      // Check if the time slot is available
+    // Check availability if service requires time slot
+    if (service.requireTimeSlot) {
       const { isAvailable } = await this.availabilityService.checkInfluencerAvailability(
-        item.influencerId.toString(),
-        timeSlot.date,
-        timeSlot.startTime,
-        timeSlot.endTime,
+        service.users?.[0]?.toString()!,
+        addToCartDto.bookingDate,
+        addToCartDto.startTime,
+        addToCartDto.endTime,
       );
 
       if (!isAvailable) {
         throw new BadRequestException('Selected time slot is not available');
       }
-
-      item.timeSlot = {
-        date: timeSlot.date,
-        startTime: timeSlot.startTime,
-        endTime: timeSlot.endTime,
-      };
     }
 
-    item.quantity = quantity;
-    cart.totalAmount = cart.items.reduce((total, item) => total + item.price * item.quantity, 0);
-    return cart.save();
+    // Create cart item
+    const cartItem: CartItem = {
+      _id: new Types.ObjectId(),
+      serviceId: new Types.ObjectId(addToCartDto.serviceId),
+      influencerId: new Types.ObjectId(service?.users?.[0]!),
+      bookingDate: addToCartDto.bookingDate,
+      startTime: addToCartDto.startTime,
+      endTime: addToCartDto.endTime,
+      price: addToCartDto.price,
+      disabled: false,
+    };
+
+    // Add item to cart and update total
+    cart.items.push(cartItem);
+    cart.totalAmount = cart.items.reduce((sum, item) => sum + item.price, 0);
+
+    return await cart.save();
   }
 
-  async removeFromCart(userId: string, itemIndex: number): Promise<CartDocument> {
-    const cart = await this.getCart(userId);
-    if (!cart.items[itemIndex]) {
+  async removeFromCart(userId: string, itemId: string): Promise<CartDocument> {
+    const cart = await this.getOrCreateCart(userId);
+
+    if (!Types.ObjectId.isValid(itemId)) {
+      throw new BadRequestException('Invalid item ID');
+    }
+
+    const itemIndex = cart.items.findIndex((item) => item._id.toString() === itemId);
+    if (itemIndex === -1) {
       throw new NotFoundException('Cart item not found');
     }
 
+    // Remove item and update total
     cart.items.splice(itemIndex, 1);
-    cart.totalAmount = cart.items.reduce((total, item) => total + item.price * item.quantity, 0);
-    return cart.save();
+    cart.totalAmount = cart.items.reduce((sum, item) => sum + item.price, 0);
+
+    return await cart.save();
   }
 
   async clearCart(userId: string): Promise<CartDocument> {
-    const cart = await this.getCart(userId);
+    const cart = await this.getOrCreateCart(userId);
     cart.items = [];
     cart.totalAmount = 0;
-    return cart.save();
+    return await cart.save();
+  }
+
+  async getCart(userId: string): Promise<CartDocument> {
+    return await this.getOrCreateCart(userId);
+  }
+
+  async updateCartItem(userId: string, itemId: string, updates: Partial<CartItem>): Promise<CartDocument> {
+    const cart = await this.getOrCreateCart(userId);
+
+    if (!Types.ObjectId.isValid(itemId)) {
+      throw new BadRequestException('Invalid item ID');
+    }
+
+    const item = cart.items.find((item) => item._id.toString() === itemId);
+    if (!item) {
+      throw new NotFoundException('Cart item not found');
+    }
+
+    // If updating time slot, validate availability
+    if (updates.bookingDate || updates.startTime || updates.endTime) {
+      const service = await this.influencerServiceService.getInfluencerServiceByServiceId(item.serviceId.toString());
+      if (service?.requireTimeSlot) {
+        const { isAvailable } = await this.availabilityService.checkInfluencerAvailability(
+          item.influencerId.toString(),
+          updates.bookingDate || item.bookingDate,
+          updates.startTime || item.startTime,
+          updates.endTime || item.endTime,
+        );
+
+        if (!isAvailable) {
+          throw new BadRequestException('Selected time slot is not available');
+        }
+      }
+    }
+
+    // Update item
+    Object.assign(item, updates);
+    cart.totalAmount = cart.items.reduce((sum, item) => sum + item.price, 0);
+
+    return await cart.save();
+  }
+
+  private async checkAndUpdateDisabledItems(cart: CartDocument): Promise<void> {
+    let hasChanges = false;
+
+    for (const item of cart.items) {
+      if (item.disabled) continue; // Skip already disabled items
+
+      const service = await this.influencerServiceService.getInfluencerServiceByServiceId(item.serviceId.toString());
+      if (!service) {
+        item.disabled = true;
+        hasChanges = true;
+        continue;
+      }
+
+      if (service.requireTimeSlot) {
+        const { isAvailable } = await this.availabilityService.checkInfluencerAvailability(
+          item.influencerId.toString(),
+          item.bookingDate,
+          item.startTime,
+          item.endTime,
+        );
+
+        if (!isAvailable) {
+          item.disabled = true;
+          hasChanges = true;
+        }
+      }
+    }
+
+    if (hasChanges) {
+      await cart.save();
+    }
   }
 }

@@ -1,6 +1,12 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 
+export enum CartItemStatus {
+  PENDING = 'PENDING',
+  BOOKED = 'BOOKED',
+  CANCELLED = 'CANCELLED',
+}
+
 @Schema({ _id: false })
 export class TimeSlot {
   @Prop({ type: Date, required: true })
@@ -13,62 +19,38 @@ export class TimeSlot {
   endTime: string;
 }
 
-@Schema({ _id: false })
+@Schema({ _id: true, timestamps: true })
 export class CartItem {
-  @Prop({ type: Types.ObjectId, required: true })
+  _id: Types.ObjectId;
+
+  @Prop({ type: Types.ObjectId, required: true, ref: 'InfluencerServices' })
   serviceId: Types.ObjectId;
 
-  @Prop({ type: Types.ObjectId, required: true })
+  @Prop({ type: Types.ObjectId, required: true, ref: 'User' })
   influencerId: Types.ObjectId;
 
-  @Prop({ type: Number, required: true, min: 1 })
-  quantity: number;
+  @Prop({ type: Date, required: true })
+  bookingDate: Date;
 
-  @Prop({ type: Boolean, required: true })
-  requiresTimeSlot: boolean;
+  @Prop({ type: String, required: true })
+  startTime: string;
 
-  @Prop({
-    type: TimeSlot,
-    validate: {
-      validator: function(timeSlot: TimeSlot | null) {
-        if (!this.requiresTimeSlot) return true;
-        if (!timeSlot) return false;
+  @Prop({ type: String, required: true })
+  endTime: string;
 
-        const { date, startTime, endTime } = timeSlot;
-        if (!date || !startTime || !endTime) return false;
-
-        // Validate time format (HH:mm)
-        const timeRegex = /^([01]?[0-9]|2[0-3]):[0-3]0$/;
-        if (!timeRegex.test(startTime) || !timeRegex.test(endTime)) return false;
-
-        // Validate 30-minute interval
-        const [startHour, startMin] = startTime.split(':').map(Number);
-        const [endHour, endMin] = endTime.split(':').map(Number);
-        const startMinutes = startHour * 60 + startMin;
-        const endMinutes = endHour * 60 + endMin;
-
-        return endMinutes - startMinutes === 30;
-      },
-      message: 'Time slot must be in HH:mm format with 30-minute intervals',
-    },
-  })
-  timeSlot?: TimeSlot;
-
-  @Prop({ type: Number, required: true, min: 0 })
+  @Prop({ type: Number, required: true })
   price: number;
 
-  @Prop({ type: String })
-  title?: string;
+  @Prop({ type: Boolean, default: false })
+  disabled: boolean;
 
-  @Prop({ type: String })
-  description?: string;
+  @Prop({ type: Types.ObjectId, ref: 'Booking' })
+  bookingId?: Types.ObjectId;
 }
 
 @Schema({ timestamps: true })
 export class Cart {
-  _id?: Types.ObjectId;
-
-  @Prop({ type: Types.ObjectId, ref: 'User', required: true })
+  @Prop({ type: Types.ObjectId, required: true, ref: 'User' })
   userId: Types.ObjectId;
 
   @Prop({ type: [CartItem], default: [] })
@@ -76,15 +58,13 @@ export class Cart {
 
   @Prop({ type: Number, default: 0 })
   totalAmount: number;
-
-  @Prop({ type: Boolean, default: true })
-  isActive: boolean;
 }
 
 export type CartDocument = Cart & Document;
+
 export const CartSchema = SchemaFactory.createForClass(Cart);
 
 // Indexes
 CartSchema.index({ userId: 1 });
 CartSchema.index({ 'items.serviceId': 1 });
-CartSchema.index({ 'items.influencerId': 1 }); 
+CartSchema.index({ 'items.influencerId': 1 });

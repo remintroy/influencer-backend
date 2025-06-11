@@ -1,10 +1,11 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Req } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Delete, Get, Param, Post, Put, Req } from '@nestjs/common';
 import { CartService } from './cart.service';
 import { AddToCartDto } from './dto/add-to-cart.dto';
-import { UserRole } from '../user/schemas/user.schema';
-import { Roles } from 'src/common/decorators/role.decorator';
+import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBearerAuth } from '@nestjs/swagger';
 import { Request } from 'express';
+import { Types } from 'mongoose';
+import { Roles } from 'src/common/decorators/role.decorator';
+import { UserRole } from 'src/user/schemas/user.schema';
 
 @ApiTags('Cart (Beta)')
 @Controller('cart')
@@ -13,51 +14,58 @@ export class CartController {
   constructor(private readonly cartService: CartService) {}
 
   @Get()
-  @Roles(UserRole.USER)
   @ApiOperation({ summary: 'Get user cart' })
   @ApiResponse({ status: 200, description: 'Returns the user cart' })
+  @Roles(UserRole.USER)
   async getCart(@Req() req: Request) {
-    return this.cartService.getCart(req?.user?.userId as string);
+    const userId = req?.user?.userId!;
+    return await this.cartService.getCart(userId);
   }
 
   @Post()
-  @Roles(UserRole.USER)
   @ApiOperation({ summary: 'Add item to cart' })
   @ApiResponse({ status: 201, description: 'Item added to cart successfully' })
-  @ApiResponse({ status: 400, description: 'Invalid input or time slot not available' })
-  @ApiResponse({ status: 404, description: 'Service not found' })
+  @Roles(UserRole.USER)
   async addToCart(@Req() req: Request, @Body() addToCartDto: AddToCartDto) {
-    return this.cartService.addToCart(req?.user?.userId as string, addToCartDto);
+    const userId = req?.user?.userId!;
+    return await this.cartService.addToCart(userId, addToCartDto);
   }
 
-  @Patch(':itemIndex')
-  @Roles(UserRole.USER)
+  @Put('item/:itemId')
   @ApiOperation({ summary: 'Update cart item' })
+  @ApiParam({ name: 'itemId', description: 'ID of the cart item to update' })
   @ApiResponse({ status: 200, description: 'Cart item updated successfully' })
-  @ApiResponse({ status: 400, description: 'Invalid input or time slot not available' })
   @ApiResponse({ status: 404, description: 'Cart item not found' })
-  async updateCartItem(
-    @Req() req: Request,
-    @Param('itemIndex') itemIndex: number,
-    @Body() updateData: { quantity: number; timeSlot?: { date: Date; startTime: string; endTime: string } },
-  ) {
-    return this.cartService.updateCartItem(req?.user?.userId as string, itemIndex, updateData.quantity, updateData.timeSlot);
+  @Roles(UserRole.USER)
+  async updateCartItem(@Req() req: Request, @Param('itemId') itemId: string, @Body() updates: Partial<AddToCartDto>) {
+    const userId = req?.user?.userId!;
+    const cartUpdates: any = { ...updates };
+
+    // Convert string IDs to ObjectIds if present
+    if (updates.serviceId) {
+      cartUpdates.serviceId = new Types.ObjectId(updates.serviceId);
+    }
+
+    return await this.cartService.updateCartItem(userId, itemId, cartUpdates);
   }
 
-  @Delete(':itemIndex')
-  @Roles(UserRole.USER)
+  @Delete('item/:itemId')
   @ApiOperation({ summary: 'Remove item from cart' })
+  @ApiParam({ name: 'itemId', description: 'ID of the cart item to remove' })
   @ApiResponse({ status: 200, description: 'Item removed from cart successfully' })
   @ApiResponse({ status: 404, description: 'Cart item not found' })
-  async removeFromCart(@Req() req: Request, @Param('itemIndex') itemIndex: number) {
-    return this.cartService.removeFromCart(req?.user?.userId as string, itemIndex);
+  @Roles(UserRole.USER)
+  async removeFromCart(@Req() req: Request, @Param('itemId') itemId: string) {
+    const userId = req?.user?.userId!;
+    return await this.cartService.removeFromCart(userId, itemId);
   }
 
-  @Delete()
-  @Roles(UserRole.USER)
+  @Delete('clear')
   @ApiOperation({ summary: 'Clear cart' })
   @ApiResponse({ status: 200, description: 'Cart cleared successfully' })
+  @Roles(UserRole.USER)
   async clearCart(@Req() req: Request) {
-    return this.cartService.clearCart(req?.user?.userId as string);
+    const userId = req?.user?.userId!;
+    return await this.cartService.clearCart(userId);
   }
 }
