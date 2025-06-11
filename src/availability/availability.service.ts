@@ -162,7 +162,7 @@ export class AvailabilityService {
     try {
       // Validate time format
       if (!this.isValidTimeFormat(startTime) || !this.isValidTimeFormat(endTime)) {
-        throw new BadRequestException('Invalid time format. Use HH:mm format with 30-minute intervals.');
+        throw new BadRequestException('Invalid time format. Use HH:mm format.');
       }
 
       // Find availability for the given date
@@ -179,7 +179,12 @@ export class AvailabilityService {
       const availableSlots = availability.timeSlots.filter((slot) => {
         const slotStart = slot.startTime;
         const slotEnd = slot.endTime;
-        return slot.status === TimeSlotStatus.AVAILABLE && slotStart >= startTime && slotEnd <= endTime;
+
+        return (
+          slot.status === TimeSlotStatus.AVAILABLE &&
+          this.timeToMinutes(slotStart) <= this.timeToMinutes(startTime) &&
+          this.timeToMinutes(slotEnd) >= this.timeToMinutes(endTime)
+        );
       });
 
       return {

@@ -59,10 +59,10 @@ export class CartService {
       serviceId: new Types.ObjectId(addToCartDto.serviceId),
       influencerId: new Types.ObjectId(service?.users?.[0]!),
       bookingDate: addToCartDto.bookingDate,
-      startTime: addToCartDto.startTime,
-      endTime: addToCartDto.endTime,
       price: addToCartDto.price,
       disabled: false,
+      ...(service.requireTimeSlot ? { startTime: addToCartDto.startTime } : {}),
+      ...(service.requireTimeSlot ? { endTime: addToCartDto.endTime } : {}),
     };
 
     // Add item to cart and update total
@@ -121,8 +121,8 @@ export class CartService {
         const { isAvailable } = await this.availabilityService.checkInfluencerAvailability(
           item.influencerId.toString(),
           updates.bookingDate || item.bookingDate,
-          updates.startTime || item.startTime,
-          updates.endTime || item.endTime,
+          updates.startTime || item.startTime!,
+          updates.endTime || item.endTime!,
         );
 
         if (!isAvailable) {
@@ -155,8 +155,8 @@ export class CartService {
         const { isAvailable } = await this.availabilityService.checkInfluencerAvailability(
           item.influencerId.toString(),
           item.bookingDate,
-          item.startTime,
-          item.endTime,
+          item.startTime!,
+          item.endTime!,
         );
 
         if (!isAvailable) {

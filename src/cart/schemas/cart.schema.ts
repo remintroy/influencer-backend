@@ -7,7 +7,7 @@ export enum CartItemStatus {
   CANCELLED = 'CANCELLED',
 }
 
-@Schema({ _id: false })
+@Schema()
 export class TimeSlot {
   @Prop({ type: Date, required: true })
   date: Date;
@@ -32,11 +32,11 @@ export class CartItem {
   @Prop({ type: Date, required: true })
   bookingDate: Date;
 
-  @Prop({ type: String, required: true })
-  startTime: string;
+  @Prop({ type: String })
+  startTime?: string;
 
-  @Prop({ type: String, required: true })
-  endTime: string;
+  @Prop({ type: String })
+  endTime?: string;
 
   @Prop({ type: Number, required: true })
   price: number;

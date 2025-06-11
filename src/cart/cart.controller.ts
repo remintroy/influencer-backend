@@ -1,9 +1,9 @@
 import { Body, Controller, Delete, Get, Param, Post, Put, Req } from '@nestjs/common';
 import { CartService } from './cart.service';
 import { AddToCartDto } from './dto/add-to-cart.dto';
+import { UpdateCartItemDto } from './dto/update-cart-item.dto';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBearerAuth } from '@nestjs/swagger';
 import { Request } from 'express';
-import { Types } from 'mongoose';
 import { Roles } from 'src/common/decorators/role.decorator';
 import { UserRole } from 'src/user/schemas/user.schema';
 
@@ -37,14 +37,14 @@ export class CartController {
   @ApiResponse({ status: 200, description: 'Cart item updated successfully' })
   @ApiResponse({ status: 404, description: 'Cart item not found' })
   @Roles(UserRole.USER)
-  async updateCartItem(@Req() req: Request, @Param('itemId') itemId: string, @Body() updates: Partial<AddToCartDto>) {
+  async updateCartItem(@Req() req: Request, @Param('itemId') itemId: string, @Body() updates: UpdateCartItemDto) {
     const userId = req?.user?.userId!;
     const cartUpdates: any = { ...updates };
 
     // Convert string IDs to ObjectIds if present
-    if (updates.serviceId) {
-      cartUpdates.serviceId = new Types.ObjectId(updates.serviceId);
-    }
+    // if (updates.serviceId) {
+    //   cartUpdates.serviceId = new Types.ObjectId(updates.serviceId);
+    // }
 
     return await this.cartService.updateCartItem(userId, itemId, cartUpdates);
   }
