@@ -260,4 +260,9 @@ export class UserService {
     );
     return this.toUserSafe(user);
   }
+
+  // TODO: Remove on prod
+  async clearUsers() {
+    return await this.userModel.deleteMany({ role: UserRole.USER });
+  }
 }

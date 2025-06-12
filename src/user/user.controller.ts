@@ -33,6 +33,12 @@ export class UserController {
     private readonly authService: AuthService,
   ) {}
 
+  // TODO: Remove on prod
+  @Delete('/clear-users')
+  async clearUsers() {
+    return this.usersService.clearUsers();
+  }
+
   @Post('/')
   @ApiOperation({ summary: 'Create a new user (Admin only)' })
   @Roles(UserRole.ADMIN)
