@@ -34,10 +34,10 @@ export class User {
   @Prop({ required: true, enum: UserRole, default: UserRole.USER })
   role: UserRole;
 
-  @Prop({ unique: true, sparse: true, lowercase: true, trim: true })
+  @Prop({ unique: [true, 'A user with this email already exists'], sparse: true, lowercase: true, trim: true })
   email?: string;
 
-  @Prop({ unique: true, sparse: true })
+  @Prop({ unique: [true, 'A user with this phone number already exists'], sparse: true })
   phoneNumber?: string;
 
   @Prop({ minlength: 6 })
