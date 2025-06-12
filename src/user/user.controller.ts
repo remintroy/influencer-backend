@@ -23,6 +23,7 @@ import mongoose, { Types } from 'mongoose';
 import { Request } from 'express';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { Roles } from 'src/common/decorators/role.decorator';
+import { Public } from 'src/common/decorators/public.decorator';
 
 @ApiTags('User management')
 @ApiBearerAuth('access-token')
@@ -35,6 +36,8 @@ export class UserController {
 
   // TODO: Remove on prod
   @Delete('/clear-users')
+  @Public()
+  @ApiOperation({ summary: 'Delete all users in the DB - DEV_ONLY' })
   async clearUsers() {
     return this.usersService.clearUsers();
   }
