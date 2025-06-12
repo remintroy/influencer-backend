@@ -19,11 +19,12 @@ export class MongoExceptionFilter implements ExceptionFilter {
     } else if (exception instanceof MongooseError.CastError) {
       status = HttpStatus.BAD_REQUEST;
       message = `Invalid ${exception.path}: ${exception.value}`;
-    } else if (exception.name === 'MongoServerError') {
+    } else if (exception.name === 'MongoServerError' || exception.name == 'MongooseError') {
       // Handle duplicate key errors from Mongoose
-      if ((exception as any).code === 11000) {
+
+      if ((exception.cause as any).code === 11000) {
         status = HttpStatus.CONFLICT;
-        message = 'Duplicate entry found';
+        message = exception?.message || 'Duplicate entry found';
       }
     }
 
@@ -34,4 +35,4 @@ export class MongoExceptionFilter implements ExceptionFilter {
       timestamp: new Date().toISOString(),
     });
   }
-} 
+}

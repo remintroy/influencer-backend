@@ -55,7 +55,7 @@ export class User {
   @Prop()
   profileImage?: string;
 
-  @Prop({ unique: true, sparse: true })
+  @Prop({ unique: [true, 'A user with the google id exists'], sparse: true })
   googleId?: string;
 
   @Prop({ enum: UserAccountType, default: UserAccountType.INDIVIDUAL })
