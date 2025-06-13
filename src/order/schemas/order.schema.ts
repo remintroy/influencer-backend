@@ -1,6 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
-import { UserRole } from '../../user/schemas/user.schema';
 
 export enum OrderStatus {
   PENDING = 'PENDING',
@@ -21,6 +20,8 @@ export enum PaymentStatus {
 
 @Schema({ timestamps: true })
 export class OrderItem {
+  _id: Types.ObjectId;
+
   @Prop({ type: Types.ObjectId, required: true, ref: 'InfluencerService' })
   serviceId: Types.ObjectId;
 
@@ -38,6 +39,21 @@ export class OrderItem {
 
   @Prop({ required: true, min: 0 })
   price: number;
+
+  @Prop({ type: String, enum: OrderStatus, default: OrderStatus.PENDING })
+  status: OrderStatus;
+
+  @Prop({ type: Types.ObjectId, ref: 'User' })
+  approvedBy?: Types.ObjectId;
+
+  @Prop({ type: Types.ObjectId, ref: 'User' })
+  rejectedBy?: Types.ObjectId;
+
+  @Prop()
+  rejectionReason?: string;
+
+  @Prop({ type: Boolean, default: false })
+  isPaid: boolean;
 }
 
 @Schema({ timestamps: true })
@@ -51,20 +67,8 @@ export class Order extends Document {
   @Prop({ required: true, min: 0 })
   totalAmount: number;
 
-  @Prop({ type: String, enum: OrderStatus, default: OrderStatus.PENDING })
-  status: OrderStatus;
-
   @Prop({ type: String, enum: PaymentStatus, default: PaymentStatus.PENDING })
   paymentStatus: PaymentStatus;
-
-  @Prop({ type: Types.ObjectId, ref: 'User' })
-  approvedBy?: Types.ObjectId;
-
-  @Prop({ type: Types.ObjectId, ref: 'User' })
-  rejectedBy?: Types.ObjectId;
-
-  @Prop()
-  rejectionReason?: string;
 
   @Prop()
   paymentId?: string;

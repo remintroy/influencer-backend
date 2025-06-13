@@ -114,6 +114,7 @@ export class OrderService {
 
   async updateOrderStatus(
     orderId: string,
+    itemId: string,
     updateOrderStatusDto: UpdateOrderStatusDto,
     userId: string,
     userRole: UserRole,
@@ -123,31 +124,57 @@ export class OrderService {
       throw new NotFoundException('Order not found');
     }
 
-    if (order?.userId?.toString() !== userId?.toString() && userRole != UserRole.ADMIN) {
-      throw new ForbiddenException("You don't have permission to update this order");
+    const item = order.items.find(item => item._id.toString() === itemId);
+    if (!item) {
+      throw new NotFoundException('Order item not found');
+    }
+
+    // Validate user permissions
+    if (userRole === UserRole.INFLUENCER) {
+      // Check if the influencer is involved in this order item
+      const isInvolvedInfluencer = item.influencerIds.some(
+        id => id.toString() === userId
+      );
+      
+      if (!isInvolvedInfluencer) {
+        throw new ForbiddenException('You are not authorized to update this order item');
+      }
+    } else if (userRole === UserRole.USER) {
+      // Users can only update their own orders
+      if (order.userId.toString() !== userId) {
+        throw new ForbiddenException('You can only update your own orders');
+      }
     }
 
     // Validate status transition
-    this.validateStatusTransition(order.status, updateOrderStatusDto.status, userRole);
+    this.validateStatusTransition(item.status, updateOrderStatusDto.status, userRole);
 
     // Validate rejection reason
     if (updateOrderStatusDto.status === OrderStatus.REJECTED && !updateOrderStatusDto.rejectionReason) {
-      throw new BadRequestException('Rejection reason is required when rejecting an order');
+      throw new BadRequestException('Rejection reason is required when rejecting an order item');
     }
 
-    // Update order status
+    // Update item status
     const update: any = {
-      status: updateOrderStatusDto.status,
+      'items.$[item].status': updateOrderStatusDto.status,
     };
 
     if (updateOrderStatusDto.status === OrderStatus.REJECTED) {
-      update.rejectedBy = new Types.ObjectId(userId);
-      update.rejectionReason = updateOrderStatusDto.rejectionReason;
+      update['items.$[item].rejectedBy'] = new Types.ObjectId(userId);
+      update['items.$[item].rejectionReason'] = updateOrderStatusDto.rejectionReason;
     } else if (updateOrderStatusDto.status === OrderStatus.APPROVED) {
-      update.approvedBy = new Types.ObjectId(userId);
+      update['items.$[item].approvedBy'] = new Types.ObjectId(userId);
     }
 
-    const orderUpdated = await this.orderModel.findByIdAndUpdate(orderId, update, { new: true });
+    const orderUpdated = await this.orderModel.findOneAndUpdate(
+      { _id: orderId },
+      { $set: update },
+      { 
+        arrayFilters: [{ 'item._id': new Types.ObjectId(itemId) }],
+        new: true 
+      }
+    );
+
     if (!orderUpdated) throw new BadRequestException('No order found');
     return orderUpdated;
   }
@@ -155,13 +182,14 @@ export class OrderService {
   async processPayment(orderId: string, userId: string): Promise<Order> {
     const order = await this.getOrder(userId, orderId);
 
-    if (order.status !== OrderStatus.APPROVED) {
-      throw new BadRequestException('Order must be approved before payment');
+    // Get approved items
+    const approvedItems = order.items.filter(item => item.status === OrderStatus.APPROVED);
+    if (approvedItems.length === 0) {
+      throw new BadRequestException('No approved items to process payment');
     }
 
-    if (order.paymentStatus === PaymentStatus.PAID) {
-      throw new BadRequestException('Order is already paid');
-    }
+    // Calculate total for approved items
+    const totalAmount = approvedItems.reduce((sum, item) => sum + item.price, 0);
 
     // TODO: Integrate with actual payment gateway
     // For now, just simulate successful payment
@@ -174,18 +202,39 @@ export class OrderService {
       throw new BadRequestException('Payment failed');
     }
 
-    const orderUpdated = await this.orderModel.findByIdAndUpdate(
-      orderId,
+    // Update order with payment info and mark approved items as paid
+    const orderUpdated = await this.orderModel.findOneAndUpdate(
+      { _id: orderId },
       {
-        status: OrderStatus.PAID,
-        paymentStatus: PaymentStatus.PAID,
-        paymentId: paymentResult.paymentId,
-        paymentDate: new Date(),
+        $set: {
+          paymentStatus: PaymentStatus.PAID,
+          paymentId: paymentResult.paymentId,
+          paymentDate: new Date(),
+          totalAmount: totalAmount,
+          'items.$[item].isPaid': true,
+          'items.$[item].status': OrderStatus.PAID
+        }
       },
-      { new: true },
+      {
+        arrayFilters: [{ 'item.status': OrderStatus.APPROVED }],
+        new: true
+      }
     );
 
     if (!orderUpdated) throw new BadRequestException('No order found');
+
+    // Remove rejected and pending items
+    await this.orderModel.updateOne(
+      { _id: orderId },
+      {
+        $pull: {
+          items: {
+            status: { $in: [OrderStatus.REJECTED, OrderStatus.PENDING] }
+          }
+        }
+      }
+    );
+
     return orderUpdated;
   }
 

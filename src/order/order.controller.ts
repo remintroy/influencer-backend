@@ -51,17 +51,42 @@ export class OrderController {
     return this.orderService.getOrder(userId, id);
   }
 
-  @Put(':id/status')
+  @Put(':orderId/item/:itemId/status')
   @ApiOperation({ summary: 'Update order status' })
-  @ApiParam({ name: 'id', description: 'Order ID' })
+  @ApiParam({ name: 'orderId', description: 'Order ID' })
+  @ApiParam({ name: 'itemId', description: 'Order ID' })
   @ApiResponse({ status: 200, description: 'Order status updated successfully' })
   @ApiResponse({ status: 400, description: 'Invalid status transition' })
   @ApiResponse({ status: 404, description: 'Order not found' })
   @Roles(UserRole.USER, UserRole.INFLUENCER, UserRole.ADMIN)
-  async updateOrderStatus(@Req() req: Request, @Param('id') id: string, @Body() updateOrderStatusDto: UpdateOrderStatusDto) {
+  async updateOrderStatus(
+    @Req() req: Request,
+    @Param('orderId') orderId: string,
+    @Param('itemId') itemId: string,
+    @Body() updateOrderStatusDto: UpdateOrderStatusDto,
+  ) {
     const userId = req?.user?.userId!;
     const userRole = req?.user?.role!;
-    return this.orderService.updateOrderStatus(id, updateOrderStatusDto, userId, userRole);
+    return this.orderService.updateOrderStatus(orderId, itemId, updateOrderStatusDto, userId, userRole);
+  }
+
+  @Put(':id/items/:itemId/status')
+  @ApiOperation({ summary: 'Update order item status' })
+  @ApiParam({ name: 'id', description: 'Order ID' })
+  @ApiParam({ name: 'itemId', description: 'Order Item ID' })
+  @ApiResponse({ status: 200, description: 'Order item status updated successfully' })
+  @ApiResponse({ status: 400, description: 'Invalid status transition' })
+  @ApiResponse({ status: 404, description: 'Order or item not found' })
+  @Roles(UserRole.USER, UserRole.INFLUENCER, UserRole.ADMIN)
+  async updateOrderItemStatus(
+    @Req() req: Request,
+    @Param('id') id: string,
+    @Param('itemId') itemId: string,
+    @Body() updateOrderStatusDto: UpdateOrderStatusDto,
+  ) {
+    const userId = req?.user?.userId!;
+    const userRole = req?.user?.role!;
+    return this.orderService.updateOrderStatus(id, itemId, updateOrderStatusDto, userId, userRole);
   }
 
   @Post(':id/payment')
