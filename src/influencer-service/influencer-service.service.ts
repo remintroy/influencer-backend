@@ -114,7 +114,19 @@ export class InfluencerServiceService {
       {
         $facet: {
           metadata: [{ $count: 'totalDocs' }],
-          data: [{ $skip: (page - 1) * limit }, { $limit: limit }],
+          data: [
+            { $skip: (page - 1) * limit },
+            { $limit: limit },
+            {
+              $lookup: {
+                from: 'users',
+                localField: 'users',
+                foreignField: '_id',
+                as: 'users',
+                pipeline: [{ $match: this.userService.defaultQuery }, { $project: this.userService.projection }],
+              },
+            },
+          ],
         },
       },
       {
