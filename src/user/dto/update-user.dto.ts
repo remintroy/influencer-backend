@@ -138,4 +138,10 @@ export class UpdateUserDto {
   @IsOptional()
   @IsString()
   bio?: string;
-} 
+
+  @ApiPropertyOptional({
+    description: 'To disable user',
+    example: 'true',
+  })
+  disabled?: boolean;
+}

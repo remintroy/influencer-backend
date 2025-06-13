@@ -11,7 +11,6 @@ import {
   NotFoundException,
   Query,
   BadRequestException,
-  UnauthorizedException,
 } from '@nestjs/common';
 import { UserService } from './user.service';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -136,6 +135,9 @@ export class UserController {
   @Put(':userId')
   async updateUser(@Param('userId') userId: string, @Req() req: Request, @Body() reqData: UpdateUserDto) {
     if (!reqData) throw new BadRequestException('Nothing to update');
+    // if (req?.user?.role != UserRole.ADMIN && reqData?.disabled == true) {
+    //   throw new ForbiddenException('Only admin can disable a user');
+    // }
     if (req.user?.role == UserRole.USER && req.user?.userId != userId) {
       throw new ForbiddenException('Unauthorized to update this user');
     }
