@@ -26,8 +26,8 @@ export class CartItem {
   @Prop({ type: Types.ObjectId, required: true, ref: 'InfluencerServices' })
   serviceId: Types.ObjectId;
 
-  @Prop({ type: Types.ObjectId, required: true, ref: 'User' })
-  influencerId: Types.ObjectId;
+  @Prop({ type: [{ type: Types.ObjectId, ref: 'User' }], required: true })
+  influencerIds: Types.ObjectId[];
 
   @Prop({ type: Date, required: true })
   bookingDate: Date;

@@ -23,9 +23,4 @@ export class AddToCartDto {
   @IsString()
   @IsNotEmpty()
   endTime: string;
-
-  @ApiProperty({ description: 'Price of the service' })
-  @IsNumber()
-  @Min(0)
-  price: number;
-} 
+}
