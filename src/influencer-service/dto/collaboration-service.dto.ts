@@ -36,7 +36,6 @@ export class CreateCollaborationServiceDto extends CreateInfluencerServiceDto {
   @IsArray()
   @ArrayMinSize(1, { message: 'At least one user ID must be provided' })
   @IsString({ each: true })
-  @IsMongoId()
   users: string[];
 }
 
