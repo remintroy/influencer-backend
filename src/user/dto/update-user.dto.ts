@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsArray, IsEmail, IsEnum, IsNumber, IsOptional, IsString, IsUrl, ValidateNested } from 'class-validator';
+import { IsArray, IsBoolean, IsEmail, IsEnum, IsNumber, IsOptional, IsString, IsUrl, ValidateNested } from 'class-validator';
 import { Types } from 'mongoose';
 import { Type } from 'class-transformer';
 import { InfluencerPlatforms } from '../schemas/user.schema';
@@ -141,7 +141,10 @@ export class UpdateUserDto {
 
   @ApiPropertyOptional({
     description: 'To disable user',
-    example: 'true',
+    example: false,
+    default: false
   })
+  @IsOptional()
+  @IsBoolean()
   disabled?: boolean;
 }
