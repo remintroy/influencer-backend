@@ -103,6 +103,13 @@ export class UserController {
   @ApiQuery({ name: 'page', required: false })
   @ApiQuery({ name: 'limit', required: false })
   @ApiQuery({
+    name: 'hideDisabledUsers',
+    description: 'Decide Whether or not disabled users is returned (ADMIN ONLY)',
+    required: false,
+    default: false,
+    type: Boolean,
+  })
+  @ApiQuery({
     name: 'hasService',
     required: false,
     default: false,
@@ -115,6 +122,7 @@ export class UserController {
     @Query('hasService') hasService: boolean,
     @Query('page') page: number,
     @Query('limit') limit: number,
+    @Query('hideDisabledUsers') hideDisabledUsers: boolean,
     @Req() req: Request,
   ) {
     const isSudo = req.user?.role == UserRole.ADMIN;
@@ -125,6 +133,7 @@ export class UserController {
       limit,
       hasService,
       sudo: isSudo,
+      showDisabled: !hideDisabledUsers,
     });
   }
 
