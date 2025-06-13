@@ -199,11 +199,11 @@ export class FlashDealService {
         throw new BadRequestException('End date must be after start date');
       }
 
-      // Check if new dates are in the future
-      const now = new Date();
-      if (startDate < now) {
-        throw new BadRequestException('Start date must be in the future');
-      }
+      // // Check if new dates are in the future
+      // const now = new Date();
+      // if (startDate < now) {
+      //   throw new BadRequestException('Start date must be in the future');
+      // }
     }
 
     // Validate prices if provided
