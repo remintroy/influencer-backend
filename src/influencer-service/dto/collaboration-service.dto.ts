@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsArray, IsString, ArrayMinSize, IsOptional, IsEnum } from 'class-validator';
+import { IsArray, IsString, ArrayMinSize, IsOptional, IsEnum, IsMongoId } from 'class-validator';
 import { CreateInfluencerServiceDto } from './create-influencer-service.dto';
 import { ServiceType } from '../schemas/influencer-service.schema';
 
@@ -27,6 +27,17 @@ export class CreateCollaborationServiceDto extends CreateInfluencerServiceDto {
     images?: string[];
     description?: string;
   };
+
+  @ApiProperty({
+    description: 'Array of user IDs to add to or remove from the collaboration',
+    example: ['60d0fe4f5311236168a109cd', '60d0fe4f5311236168a109ce'],
+    type: [String],
+  })
+  @IsArray()
+  @ArrayMinSize(1, { message: 'At least one user ID must be provided' })
+  @IsString({ each: true })
+  @IsMongoId()
+  users: string[];
 }
 
 export class ConvertToCollaborationServiceDto {
