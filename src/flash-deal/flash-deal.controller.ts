@@ -30,8 +30,9 @@ export class FlashDealController {
   })
   @ApiQuery({ name: 'page', required: false, description: 'Page number for pagination' })
   @ApiQuery({ name: 'limit', required: false, description: 'Number of items per page' })
-  async getAllFlashDeals(@Query() query: { page?: number; limit?: number }) {
-    return this.flashDealService.getAllFlashDeals(query);
+  async getAllFlashDeals(@Query() query: { page?: number; limit?: number }, @Req() req: Request) {
+    const isSudo = req.user?.role == UserRole.ADMIN;
+    return this.flashDealService.getAllFlashDeals(query, { sudo: isSudo });
   }
 
   @Get('/:flashDealId')

@@ -29,9 +29,7 @@ export class FlashDealService {
       serviceId: new Types.ObjectId(data.serviceId),
       isDeleted: false,
       isActive: true,
-      $or: [
-        { startDate: { $lte: new Date(data.endDate) }, endDate: { $gte: new Date(data.startDate) } }
-      ]
+      $or: [{ startDate: { $lte: new Date(data.endDate) }, endDate: { $gte: new Date(data.startDate) } }],
     });
 
     if (existingFlashDeal) {
@@ -55,13 +53,17 @@ export class FlashDealService {
     });
   }
 
-  async getAllFlashDeals(query?: { page?: number; limit?: number }) {
+  async getAllFlashDeals(query?: { page?: number; limit?: number }, options?: { sudo?: boolean }) {
     const page = Number(query?.page) || 1;
     const limit = Number(query?.limit) || 10;
 
+    const baseMatchQuery: any = { isDeleted: { $ne: true } };
+
+    if (!options?.sudo) baseMatchQuery['isActive'] = true;
+
     return (
       await this.flashDealModel.aggregate([
-        { $match: { isDeleted: false, isActive: true } },
+        { $match: baseMatchQuery },
         {
           $lookup: {
             from: 'influencerservices',
