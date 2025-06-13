@@ -199,7 +199,7 @@ export class UserService {
       { $project: this.projection },
       ...(hasService
         ? [
-            { $lookup: { from: 'influencerservices', localField: '_id', foreignField: 'userId', as: 'services' } },
+            { $lookup: { from: 'influencerservices', localField: '_id', foreignField: 'users', as: 'services' } },
             { $match: { 'services.0': { $exists: true } } },
           ]
         : []),
@@ -211,7 +211,7 @@ export class UserService {
             { $limit: limit },
             { $lookup: { from: 'categories', localField: 'category', foreignField: '_id', as: 'category' } },
             ...(!hasService
-              ? [{ $lookup: { from: 'influencerservices', localField: '_id', foreignField: 'userId', as: 'services' } }]
+              ? [{ $lookup: { from: 'influencerservices', localField: '_id', foreignField: 'users', as: 'services' } }]
               : []),
           ],
         },
