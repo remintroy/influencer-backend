@@ -138,9 +138,12 @@ export class InfluencerServiceController {
     description: 'Delete a service. Only service members can delete.',
   })
   @ApiParam({ name: 'serviceId', description: 'ID of the service to delete' })
-  @Roles(UserRole.INFLUENCER)
+  @Roles(UserRole.INFLUENCER, UserRole.ADMIN)
   async deleteInfluencerService(@Param('serviceId') serviceId: string, @Req() req: Request) {
-    return this.influencerServiceService.deleteInfluencerServiceById(serviceId, req?.user?.userId as string);
+    return this.influencerServiceService.deleteInfluencerServiceById(serviceId, {
+      currentUserId: req?.user?.userId!,
+      currentUserRole: req?.user?.role!,
+    });
   }
 
   @ApiOperation({ summary: 'Get a influencer service' })

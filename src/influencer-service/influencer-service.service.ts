@@ -357,16 +357,19 @@ export class InfluencerServiceService {
     );
   }
 
-  async deleteInfluencerServiceById(serviceId: string, currentUserId?: string) {
+  async deleteInfluencerServiceById(serviceId: string, options: { currentUserId?: string; currentUserRole: UserRole }) {
     if (!isValidObjectId(serviceId)) throw new BadRequestException('Invalid serviceId');
-    if (currentUserId && !isValidObjectId(currentUserId)) throw new BadRequestException('Invalid influencerId');
+    if (options?.currentUserId && !isValidObjectId(options?.currentUserId)) throw new BadRequestException('Invalid influencerId');
 
     const serviceData = await this.influencerServiceModal.findById(serviceId);
 
     if (!serviceData) throw new BadRequestException('Service not found');
 
     // Check if user has permission to delete
-    if (!serviceData.users?.map((id) => id.toString()).includes(currentUserId)) {
+    if (
+      !serviceData.users?.map((id) => id.toString()).includes(options?.currentUserId) &&
+      options?.currentUserRole !== UserRole?.ADMIN
+    ) {
       throw new ForbiddenException("You don't have permission to delete this service");
     }
 

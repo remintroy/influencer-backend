@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { InjectModel } from '@nestjs/mongoose';
 import mongoose, { isValidObjectId, Model, Types } from 'mongoose';
 import { User, UserDocument, UserPaginationResponse, UserRole } from './schemas/user.schema';
+import { ServiceType } from 'src/influencer-service/schemas/influencer-service.schema';
 
 @Injectable()
 export class UserService {
@@ -170,6 +171,7 @@ export class UserService {
       hasService?: boolean;
       sudo?: boolean;
       showDisabled?: boolean;
+      serviceType?: ServiceType;
     },
   ): Promise<UserPaginationResponse> {
     const limit = options?.limit || 10;
@@ -207,7 +209,15 @@ export class UserService {
       { $project: this.projection },
       ...(hasService
         ? [
-            { $lookup: { from: 'influencerservices', localField: '_id', foreignField: 'users', as: 'services' } },
+            {
+              $lookup: {
+                from: 'influencerservices',
+                localField: '_id',
+                foreignField: 'users',
+                as: 'services',
+                pipeline: [...(options?.serviceType ? [{ $match: { type: options?.serviceType } }] : [])],
+              },
+            },
             { $match: { 'services.0': { $exists: true } } },
           ]
         : []),

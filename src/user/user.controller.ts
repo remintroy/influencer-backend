@@ -23,6 +23,7 @@ import { Request } from 'express';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { Roles } from 'src/common/decorators/role.decorator';
 import { Public } from 'src/common/decorators/public.decorator';
+import { ServiceType } from 'src/influencer-service/schemas/influencer-service.schema';
 
 @ApiTags('User management')
 @ApiBearerAuth('access-token')
@@ -115,6 +116,14 @@ export class UserController {
     default: false,
     description: 'If true, only return influencer with services. If false it will return all influencers',
   })
+  @ApiQuery({
+    name: 'serviceType',
+    required: false,
+    default: '',
+    enum: ServiceType,
+    example: ServiceType.INDIVIDUAL,
+    description: 'Check if influencer have won service',
+  })
   async searchInfluencers(
     @Query('search') search: string,
     @Query('category') category: string,
@@ -123,6 +132,7 @@ export class UserController {
     @Query('page') page: number,
     @Query('limit') limit: number,
     @Query('hideDisabledUsers') hideDisabledUsers: boolean,
+    @Query('serviceType') serviceType: ServiceType,
     @Req() req: Request,
   ) {
     const isSudo = req.user?.role == UserRole.ADMIN;
@@ -134,6 +144,7 @@ export class UserController {
       hasService,
       sudo: isSudo,
       showDisabled: !hideDisabledUsers,
+      serviceType,
     });
   }
 
