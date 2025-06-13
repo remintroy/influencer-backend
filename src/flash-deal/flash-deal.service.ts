@@ -6,6 +6,7 @@ import { CreateFlashDealDto } from './dto/create-flash-deal.dto';
 import { UpdateFlashDealDto } from './dto/update-flash-deal.dto';
 import { InfluencerServiceService } from 'src/influencer-service/influencer-service.service';
 import { UserService } from 'src/user/user.service';
+import { UserRole } from 'src/user/schemas/user.schema';
 
 @Injectable()
 export class FlashDealService {
@@ -114,13 +115,17 @@ export class FlashDealService {
     )?.[0];
   }
 
-  async getFlashDealById(id: string) {
+  async getFlashDealById(id: string, options?: { sudo?: boolean }) {
     if (!Types.ObjectId.isValid(id)) {
       throw new BadRequestException('Invalid flash deal ID');
     }
 
+    const baseMatchQuery: any = { isDeleted: { $ne: true } };
+
+    if (!options?.sudo) baseMatchQuery['isActive'] = true;
+
     const flashDeal = await this.flashDealModel.aggregate([
-      { $match: { _id: new Types.ObjectId(id), isDeleted: false, isActive: true } },
+      { $match: { _id: new Types.ObjectId(id), ...baseMatchQuery } },
       {
         $lookup: {
           from: 'influencerservices',
@@ -162,18 +167,26 @@ export class FlashDealService {
     return flashDeal[0];
   }
 
-  async updateFlashDeal(id: string, data: UpdateFlashDealDto, currentUser: string) {
+  async updateFlashDeal(
+    id: string,
+    data: UpdateFlashDealDto,
+    options?: { sudo?: boolean; currentUserId: string; currentUserRole: UserRole },
+  ) {
+    const baseMatchQuery: any = { isDeleted: { $ne: true } };
+
+    if (!options?.sudo) baseMatchQuery['isActive'] = true;
+
     if (!Types.ObjectId.isValid(id)) {
       throw new BadRequestException('Invalid flash deal ID');
     }
 
-    const flashDeal = await this.flashDealModel.findOne({ _id: id, isDeleted: false, isActive: true });
+    const flashDeal = await this.flashDealModel.findOne({ _id: id, ...baseMatchQuery });
     if (!flashDeal) {
       throw new NotFoundException('Flash deal not found');
     }
 
     // Check if user is the creator
-    if (flashDeal.createdBy.toString() !== currentUser) {
+    if (flashDeal.createdBy.toString() !== options?.currentUserId && options?.currentUserRole !== UserRole.ADMIN) {
       throw new BadRequestException('You are not authorized to update this flash deal');
     }
 
@@ -230,7 +243,7 @@ export class FlashDealService {
     );
   }
 
-  async deleteFlashDeal(id: string, currentUser: string) {
+  async deleteFlashDeal(id: string, options?: { sudo?: boolean; currentUserId: string; currentUserRole: UserRole }) {
     if (!Types.ObjectId.isValid(id)) {
       throw new BadRequestException('Invalid flash deal ID');
     }
@@ -241,7 +254,7 @@ export class FlashDealService {
     }
 
     // Check if user is the creator
-    if (flashDeal.createdBy.toString() !== currentUser) {
+    if (flashDeal.createdBy.toString() !== options?.currentUserId! && options?.currentUserRole !== UserRole?.ADMIN) {
       throw new BadRequestException('You are not authorized to delete this flash deal');
     }
 

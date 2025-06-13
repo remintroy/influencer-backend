@@ -41,8 +41,9 @@ export class FlashDealController {
     description: 'Retrieve a specific flash deal by its ID',
   })
   @ApiParam({ name: 'flashDealId', description: 'ID of the flash deal to retrieve' })
-  async getFlashDealById(@Param('flashDealId') flashDealId: string) {
-    return this.flashDealService.getFlashDealById(flashDealId);
+  async getFlashDealById(@Param('flashDealId') flashDealId: string, @Req() req: Request) {
+    const isSudo = req.user?.role == UserRole.ADMIN;
+    return this.flashDealService.getFlashDealById(flashDealId, { sudo: isSudo });
   }
 
   @Put('/:flashDealId')
@@ -53,7 +54,12 @@ export class FlashDealController {
   @ApiParam({ name: 'flashDealId', description: 'ID of the flash deal to update' })
   @Roles(UserRole.ADMIN, UserRole.INFLUENCER)
   async updateFlashDeal(@Param('flashDealId') flashDealId: string, @Body() data: UpdateFlashDealDto, @Req() req: Request) {
-    return this.flashDealService.updateFlashDeal(flashDealId, data, req?.user?.userId as string);
+    const isSudo = req.user?.role == UserRole.ADMIN;
+    return this.flashDealService.updateFlashDeal(flashDealId, data, {
+      currentUserId: req?.user?.userId!,
+      currentUserRole: req?.user?.role as UserRole,
+      sudo: isSudo,
+    });
   }
 
   @Delete('/:flashDealId')
@@ -64,7 +70,10 @@ export class FlashDealController {
   @ApiParam({ name: 'flashDealId', description: 'ID of the flash deal to delete' })
   @Roles(UserRole.ADMIN, UserRole.INFLUENCER)
   async deleteFlashDeal(@Param('flashDealId') flashDealId: string, @Req() req: Request) {
-    return this.flashDealService.deleteFlashDeal(flashDealId, req?.user?.userId as string);
+    return this.flashDealService.deleteFlashDeal(flashDealId, {
+      currentUserId: req?.user?.userId!,
+      currentUserRole: req?.user?.role as UserRole,
+    });
   }
 
   @Post('/:flashDealId/purchase')
