@@ -162,7 +162,7 @@ export class UserService {
 
   async getInfluencerSearchPaginated(
     search: string,
-    options: { category?: string; platform?: string; page?: number; limit?: number; hasService?: boolean },
+    options: { category?: string; platform?: string; page?: number; limit?: number; hasService?: boolean; sudo?: boolean },
   ): Promise<UserPaginationResponse> {
     const limit = options?.limit || 10;
     const page = options?.page || 1;
@@ -173,6 +173,8 @@ export class UserService {
       role: UserRole.INFLUENCER,
       ...this.defaultQuery,
     };
+
+    if (options?.sudo) delete baseQuery?.disabled;
 
     if (search) {
       baseQuery = {

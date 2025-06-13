@@ -115,12 +115,20 @@ export class UserController {
     @Query('hasService') hasService: boolean,
     @Query('page') page: number,
     @Query('limit') limit: number,
+    @Req() req: Request,
   ) {
-    return await this.usersService.getInfluencerSearchPaginated(search, { category, platform, page, limit, hasService });
+    const isSudo = req.user?.role == UserRole.ADMIN;
+    return await this.usersService.getInfluencerSearchPaginated(search, {
+      category,
+      platform,
+      page,
+      limit,
+      hasService,
+      sudo: isSudo,
+    });
   }
 
   // Wild card routes
-
   @ApiOperation({ summary: 'Get a user by ID' })
   @ApiParam({ name: 'userId', description: 'User ID' })
   @Get(':userId')
