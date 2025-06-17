@@ -40,14 +40,21 @@ export class InfluencerServiceService {
     return await this.influencerServiceModal.create({ ...data, createdBy: new Types.ObjectId(createdBy) });
   }
 
-  async updateInfluencerService(serviceId: string, data: Partial<InfluencerServices>, options?: { currentUser?: string }) {
+  async updateInfluencerService(
+    serviceId: string,
+    data: Partial<InfluencerServices>,
+    options?: { currentUserId?: string; currentUserRole?: UserRole },
+  ) {
     if (!isValidObjectId(serviceId)) throw new BadRequestException('Invalid serviceId');
     const serviceData = await this.influencerServiceModal.findById(serviceId);
 
     if (!serviceData) throw new BadRequestException('Service not found');
 
     // Check if user has permission to update
-    if (!serviceData.users?.map((id) => id.toString()).includes(options?.currentUser)) {
+    if (
+      !serviceData.users?.map((id) => id?.toString?.()).includes(options?.currentUserId) &&
+      options?.currentUserRole != UserRole.ADMIN
+    ) {
       throw new ForbiddenException("You don't have permission to update this service");
     }
 
@@ -56,11 +63,22 @@ export class InfluencerServiceService {
       data.users = data.users.map((id) => new Types.ObjectId(id));
     }
 
-    return await this.influencerServiceModal.findOneAndUpdate(
-      { _id: new Types.ObjectId(serviceId) },
-      { $set: data },
-      { new: true },
-    );
+    await this.influencerServiceModal.updateOne({ _id: new Types.ObjectId(serviceId) }, { $set: data });
+
+    return (
+      await this.influencerServiceModal.aggregate([
+        { $match: { _id: new Types.ObjectId(serviceId) } },
+        {
+          $lookup: {
+            from: 'users',
+            localField: 'users',
+            foreignField: '_id',
+            as: 'users',
+            pipeline: [{ $match: this.userService.defaultQuery }, { $project: this.userService.projection }],
+          },
+        },
+      ])
+    )?.[0];
   }
 
   async getInfluencerServiceByServiceId(serviceId: string) {

@@ -123,13 +123,16 @@ export class InfluencerServiceController {
     description: 'Update an existing service. Only service members can update.',
   })
   @ApiParam({ name: 'serviceId', description: 'ID of the service to update' })
-  @Roles(UserRole.INFLUENCER)
+  @Roles(UserRole.INFLUENCER, UserRole.ADMIN)
   async updateInfluencerService(
     @Param('serviceId') serviceId: string,
     @Body() data: UpdateInfluencerServiceDto,
     @Req() req: Request,
   ) {
-    return this.influencerServiceService.updateInfluencerService(serviceId, data, { currentUser: req?.user?.userId as string });
+    return this.influencerServiceService.updateInfluencerService(serviceId, data, {
+      currentUserId: req?.user?.userId!,
+      currentUserRole: req?.user?.role!,
+    });
   }
 
   @Delete('/:serviceId')
