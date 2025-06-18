@@ -13,7 +13,7 @@ export class Otp extends Document {
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })
   userId: Types.ObjectId;
 
-  @Prop({ type: OtpType, required: true, default: OtpType.VERIFY_ACCOUNT })
+  @Prop({ enum: OtpType, required: true, default: OtpType.VERIFY_ACCOUNT })
   otpType: OtpType;
 
   @Prop({ required: true })
