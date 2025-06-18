@@ -11,6 +11,8 @@ import { Public } from 'src/common/decorators/public.decorator';
 import { Roles } from 'src/common/decorators/role.decorator';
 import { UserRole } from 'src/user/schemas/user.schema';
 import { GoogleLoginDto } from './dto/google-login.dto';
+import { ResetPasswordWithOtpDto } from './dto/reset-password-with-otp.dto';
+import { ForgetPasswordDto } from './dto/forget-password.dto';
 
 @ApiTags('Authentication')
 @Controller('auth')
@@ -51,6 +53,34 @@ export class AuthController {
   async signUp(@Body() reqData: SignupUserDto, @Res({ passthrough: true }) res: Response, @Req() req: Request) {
     const userAgent = req.headers['user-agent'];
     return this.authService.signUp(reqData, res, userAgent);
+  }
+
+  @Post('forget-password')
+  @Public()
+  @ApiBody({ type: ForgetPasswordDto })
+  @ApiOperation({
+    summary: 'Send OTP for password reset',
+    description: "Sends an OTP to the user's registered phone number for password reset.",
+  })
+  async forgetPasswordSendOtp(@Req() req: Request, @Body() reqData: ForgetPasswordDto) {
+    const userAgent = req.headers['user-agent'];
+    return this.authService.forgetPasswordSendOtp({ ...reqData, userAgent: userAgent! });
+  }
+
+  @Post('reset-password-with-otp')
+  @ApiBody({ type: ResetPasswordWithOtpDto })
+  @Public()
+  @ApiOperation({
+    summary: 'Reset password with OTP',
+    description: 'Allows a user to reset their password using a valid OTP, new password, and userId.',
+  })
+  async resetPasswordWithOtp(
+    @Body() reqData: ResetPasswordWithOtpDto,
+    @Res({ passthrough: true }) res: Response,
+    @Req() req: Request,
+  ) {
+    const userAgent = req.headers['user-agent'];
+    return this.authService.resetPasswordWithOtp({ ...reqData, res, userAgent });
   }
 
   @Post('verify-otp/:userId')

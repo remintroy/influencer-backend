@@ -12,7 +12,7 @@ import { Response } from 'express';
 import { RefreshToken, RefreshTokenDocument } from './schemas/refresh-token.schema';
 import { Model, Types } from 'mongoose';
 import { InjectModel } from '@nestjs/mongoose';
-import { Otp, OtpDocument } from './schemas/otp.schema';
+import { Otp, OtpDocument, OtpType } from './schemas/otp.schema';
 import { GoogleAuthService } from './google-auth/google-auth.service';
 
 @Injectable()
@@ -63,11 +63,18 @@ export class AuthService {
     return token;
   }
 
-  async generateOtp(userId: string, options?: { userAgent?: string; ipAddress?: string }): Promise<string> {
+  async generateOtp(userId: string, options?: { userAgent?: string; ipAddress?: string; otpType: OtpType }): Promise<string> {
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const otpHash = await bcrypt.hash(otp, 10);
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
-    this.otpModel.create({ otp: otpHash, expiresAt, userId, userAgent: options?.userAgent, ipAddress: options?.ipAddress });
+    this.otpModel.create({
+      otp: otpHash,
+      otpType: options?.otpType,
+      expiresAt,
+      userId,
+      userAgent: options?.userAgent,
+      ipAddress: options?.ipAddress,
+    });
     return otp;
   }
 
@@ -143,7 +150,7 @@ export class AuthService {
     }
 
     if (user?.role == UserRole.USER && !user?.meta?.isVerified) {
-      const otp = await this.generateOtp(user?._id as string, { userAgent });
+      const otp = await this.generateOtp(user?._id as string, { userAgent, otpType: OtpType.VERIFY_ACCOUNT });
 
       await this.userService.updateUser(user?._id + '', { meta: { welcomeMailWithPasswordSent: true } });
 
@@ -208,7 +215,7 @@ export class AuthService {
     delete newUser.password;
 
     if (newUser?.role == UserRole.USER) {
-      const otp = await this.generateOtp(newUser?._id as string, { userAgent });
+      const otp = await this.generateOtp(newUser?._id as string, { userAgent, otpType: OtpType.VERIFY_ACCOUNT });
 
       await this.userService.updateUser(newUser?._id + '', { meta: { welcomeMailWithPasswordSent: true } });
 
@@ -259,7 +266,7 @@ export class AuthService {
 
     if (userData?.meta?.isVerified) throw new UnauthorizedException('User already verified');
 
-    const optData = await this.otpModel.findOne({ userId: userData?._id })?.sort({ _id: -1 });
+    const optData = await this.otpModel.findOne({ userId: userData?._id, otpType: OtpType.VERIFY_ACCOUNT })?.sort({ _id: -1 });
 
     const otpMatched = await bcrypt.compare(otp, optData?.otp + '');
 
@@ -285,6 +292,76 @@ export class AuthService {
     this.setRefreshTokenCookie(res, refreshToken);
 
     return { ...verifiedUser, accessToken, refreshToken };
+  }
+
+  async forgetPasswordSendOtp(data: { userAgent: string; phoneNumber: string }) {
+    const userData = await this.userService.getUserByEmailOrPhone('', { phoneNumber: data?.phoneNumber });
+
+    if (!userData) throw new NotFoundException('User not found');
+
+    const otp = await this.generateOtp(userData?._id?.toString?.()!, {
+      userAgent: data?.userAgent,
+      otpType: OtpType.RESET_PASSWORD,
+    });
+
+    if (userData?.email) {
+      try {
+        await this.emailService.sendOtp(userData?.email!, otp);
+      } catch {
+        throw new BadRequestException('Failed to send EMAIL OTP');
+      }
+    }
+
+    if (userData?.phoneNumber) {
+      const send = await this.smsService.sendOtp(userData.phoneNumber!, otp);
+      if (!send) throw new BadRequestException('Failed to send SMS OTP');
+    }
+
+    return {
+      success: true,
+      data: { userId: userData?._id },
+      message: 'OTP send successfully - A OTP has been send to your register email/phoneNumber',
+    };
+  }
+
+  async resetPasswordWithOtp(data: {
+    otp: string;
+    newPassword: string;
+    userId: string;
+    res: Response;
+    userAgent?: string;
+    ipAddress?: string;
+    deviceInfo?: string;
+  }) {
+    if (!data?.otp) throw new BadRequestException('OTP is required to reset password');
+    if (!data?.newPassword) throw new BadRequestException('new Password is required to reset password');
+
+    const userData = await this.userService.getUserById(data?.userId);
+
+    if (!userData) throw new NotFoundException('User not found');
+
+    const optData = await this.otpModel.findOne({ userId: userData?._id, otpType: OtpType.RESET_PASSWORD })?.sort({ _id: -1 });
+
+    if (!optData) throw new BadRequestException('Missing OTP - Invalid request');
+
+    const otpMatched = await bcrypt.compare(data?.otp, optData?.otp + '');
+
+    if (!otpMatched || new Date(optData?.expiresAt as Date) < new Date()) {
+      throw new UnauthorizedException('Invalid Otp or Otp expired');
+    }
+
+    await this.otpModel.deleteMany({ userId: userData?._id, otpType: OtpType.RESET_PASSWORD });
+
+    const accessToken = await this.generateJwtAccessToken(userData as User);
+    const refreshToken = await this.generateJwtRefreshToken(userData as User, {
+      userAgent: data?.userAgent,
+      ipAddress: data?.ipAddress,
+      deviceInfo: data?.deviceInfo,
+    });
+
+    this.setRefreshTokenCookie(data?.res, refreshToken);
+
+    return { ...userData, accessToken, refreshToken };
   }
 
   async sendCredentialsToInfluencer(userId: string) {

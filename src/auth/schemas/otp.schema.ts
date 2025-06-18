@@ -3,10 +3,18 @@ import { Document, Types } from 'mongoose';
 
 export type OtpDocument = Otp & Document;
 
+export enum OtpType {
+  VERIFY_ACCOUNT = 'verify_account',
+  RESET_PASSWORD = 'reset_password',
+}
+
 @Schema({ timestamps: true })
 export class Otp extends Document {
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })
   userId: Types.ObjectId;
+
+  @Prop({ type: OtpType, required: true, default: OtpType.VERIFY_ACCOUNT })
+  otpType: OtpType;
 
   @Prop({ required: true })
   otp: string;
