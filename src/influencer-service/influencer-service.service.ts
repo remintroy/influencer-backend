@@ -83,7 +83,20 @@ export class InfluencerServiceService {
 
   async getInfluencerServiceByServiceId(serviceId: string) {
     if (!isValidObjectId(serviceId)) throw new BadRequestException('Invalid serviceId');
-    return await this.influencerServiceModal.findById(serviceId);
+    return (
+      await this.influencerServiceModal.aggregate([
+        { $match: { _id: new Types.ObjectId(serviceId) } },
+        {
+          $lookup: {
+            from: 'users',
+            localField: 'users',
+            foreignField: '_id',
+            as: 'users',
+            pipeline: [{ $match: this.userService.defaultQuery }, { $project: this.userService.projection }],
+          },
+        },
+      ])
+    )?.[0];
   }
 
   async getInfluencerServicesByInfluencerId(
