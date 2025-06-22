@@ -322,7 +322,7 @@ export class AuthService {
       if (!send) errors.push('Failed to send SMS OTP');
     }
 
-    if (errors?.length == attempts) throw new BadRequestException(errors);
+    if (errors?.length == attempts) throw new BadRequestException(errors, 'Failed to send OTP');
 
     return {
       success: true,
