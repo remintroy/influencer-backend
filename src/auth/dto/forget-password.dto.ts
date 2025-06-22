@@ -3,10 +3,9 @@ import { IsNotEmpty, IsString } from 'class-validator';
 
 export class ForgetPasswordDto {
   @ApiProperty({
-    description: 'Phone number with country code',
-    example: '+919999999999',
+    description: 'Phone number with country code or Email Id of user',
   })
   @IsString()
   @IsNotEmpty()
-  phoneNumber: string;
-} 
+  username: string;
+}

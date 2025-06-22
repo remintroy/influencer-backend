@@ -71,7 +71,7 @@ export class AuthService {
       otp: otpHash,
       otpType: options?.otpType,
       expiresAt,
-      userId,
+      userId: new Types.ObjectId(userId),
       userAgent: options?.userAgent,
       ipAddress: options?.ipAddress,
     });
@@ -294,8 +294,8 @@ export class AuthService {
     return { ...verifiedUser, accessToken, refreshToken };
   }
 
-  async forgetPasswordSendOtp(data: { userAgent: string; phoneNumber: string }) {
-    const userData = await this.userService.getUserByEmailOrPhone('', { phoneNumber: data?.phoneNumber });
+  async forgetPasswordSendOtp(data: { userAgent: string; username: string }) {
+    const userData = await this.userService.getUserByEmailOrPhone(data?.username!);
 
     if (!userData) throw new NotFoundException('User not found');
 
@@ -304,22 +304,30 @@ export class AuthService {
       otpType: OtpType.RESET_PASSWORD,
     });
 
+    const errors: string[] = [];
+    let attempts = 0;
+
     if (userData?.email) {
       try {
+        attempts++;
         await this.emailService.sendOtp(userData?.email!, otp);
       } catch {
-        throw new BadRequestException('Failed to send EMAIL OTP');
+        errors.push('Failed to send EMAIL OTP');
       }
     }
 
     if (userData?.phoneNumber) {
+      attempts++;
       const send = await this.smsService.sendOtp(userData.phoneNumber!, otp);
-      if (!send) throw new BadRequestException('Failed to send SMS OTP');
+      if (!send) errors.push('Failed to send SMS OTP');
     }
+
+    if (errors?.length == attempts) throw new BadRequestException(errors);
 
     return {
       success: true,
       data: { userId: userData?._id },
+      warnings: errors,
       message: 'OTP send successfully - A OTP has been send to your register email/phoneNumber',
     };
   }
@@ -347,7 +355,7 @@ export class AuthService {
     const otpMatched = await bcrypt.compare(data?.otp, optData?.otp + '');
 
     if (!otpMatched || new Date(optData?.expiresAt as Date) < new Date()) {
-      throw new UnauthorizedException('Invalid Otp or Otp expired');
+      throw new UnauthorizedException('Invalid OTP or OTP expired');
     }
 
     await this.otpModel.deleteMany({ userId: userData?._id, otpType: OtpType.RESET_PASSWORD });
