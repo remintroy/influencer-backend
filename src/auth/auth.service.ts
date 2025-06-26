@@ -345,20 +345,20 @@ export class AuthService {
     if (!data?.newPassword) throw new BadRequestException('new Password is required to reset password');
 
     const userData = await this.userService.getUserById(data?.userId);
-
     if (!userData) throw new NotFoundException('User not found');
 
     const optData = await this.otpModel.findOne({ userId: userData?._id, otpType: OtpType.RESET_PASSWORD })?.sort({ _id: -1 });
-
     if (!optData) throw new BadRequestException('Missing OTP - Invalid request');
 
     const otpMatched = await bcrypt.compare(data?.otp, optData?.otp + '');
-
     if (!otpMatched || new Date(optData?.expiresAt as Date) < new Date()) {
       throw new UnauthorizedException('Invalid OTP or OTP expired');
     }
 
     await this.otpModel.deleteMany({ userId: userData?._id, otpType: OtpType.RESET_PASSWORD });
+
+    const newHashedPassword = await this.createPasswordHash(data?.newPassword);
+    await this.userService.updateUserSudo(userData?._id + '', { password: newHashedPassword });
 
     const accessToken = await this.generateJwtAccessToken(userData as User);
     const refreshToken = await this.generateJwtRefreshToken(userData as User, {
