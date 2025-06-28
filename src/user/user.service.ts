@@ -188,6 +188,7 @@ export class UserService {
 
     if (search) {
       baseQuery = {
+        ...baseQuery,
         $or: [
           { name: { $regex: search, $options: 'i' } },
           { bio: { $regex: search, $options: 'i' } },

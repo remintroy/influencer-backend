@@ -1,5 +1,5 @@
 import { NestFactory, Reflector } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
+import { Logger, ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { ConfigService } from '@nestjs/config';
@@ -21,6 +21,7 @@ async function bootstrap() {
   // Create the NestJS application instance
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
+  const logger = new Logger('Main');
 
   // Enable CORS with specific options
   app.enableCors({
@@ -93,9 +94,11 @@ async function bootstrap() {
   // Start the server
   const port = configService.get('PORT', 3000);
   await app.listen(port);
-  console.log(`Application is running on: http://localhost:${port}`);
+  logger.log(`Application is running on: http://localhost:${port}`);
   if (enableSwagger) {
-    console.log(`API Documentation available at: http://localhost:${port}/api`);
+    logger.log(`API Documentation available at: http://localhost:${port}/api`);
+  } else {
+    logger.warn('Swagger is disabled');
   }
 }
 
