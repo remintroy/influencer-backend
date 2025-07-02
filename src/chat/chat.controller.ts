@@ -5,7 +5,7 @@ import { InitiateChatDto } from './dto/initiate-chat.dto';
 import { ReadMessagesDto } from './dto/read-messages.dto';
 import { Request } from 'express';
 
-@ApiTags('Chat')
+@ApiTags('Chat (Beta)')
 @ApiBearerAuth('access-token')
 @Controller('chat')
 export class ChatController {
