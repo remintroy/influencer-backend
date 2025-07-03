@@ -31,7 +31,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
   constructor(
     private readonly chatService: ChatService,
     private readonly authService: AuthService,
-  ) {}
+  ) { }
 
   afterInit(server: Server) {
     this.server = server;
@@ -68,8 +68,10 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
   @SubscribeMessage('join-chat')
   async handleJoinChat(@MessageBody() data: { chatId: string }, @ConnectedSocket() client: Socket) {
+    const chatRoom = await this.chatService.ensureParticipant(data.chatId, client.data.user?.userId!, { userLookup: true });
     client.join(data.chatId);
     this.logger.log(`User ${client.data.user?.userId} joined chat ${data.chatId}`);
+    client.emit("join-chat", chatRoom)
   }
 
   @SubscribeMessage('send-message')
@@ -108,7 +110,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
   @SubscribeMessage('my-chats')
   async handleMyChats(@ConnectedSocket() client: Socket) {
     const userId = client.data.user?.userId;
-    const chats = await this.chatService.getUserChats(userId);
+    const chats = await this.chatService.getUserChats(userId, { userLookup: true });
     client.emit('my-chats', chats);
     return chats;
   }

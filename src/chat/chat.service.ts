@@ -3,13 +3,15 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { ChatRoom, ChatRoomDocument } from './schemas/chat-room.schema';
 import { Message, MessageDocument } from './schemas/message.schema';
+import { UserService } from 'src/user/user.service';
 
 @Injectable()
 export class ChatService {
   constructor(
     @InjectModel(ChatRoom.name) private chatRoomModel: Model<ChatRoomDocument>,
     @InjectModel(Message.name) private messageModel: Model<MessageDocument>,
-  ) {}
+    private readonly userService: UserService
+  ) { }
 
   /**
    * Find or create a chat room for participants (supports direct and collaboration/group chat)
@@ -48,18 +50,63 @@ export class ChatService {
   /**
    * Get all chat rooms for a user
    */
-  async getUserChats(userId: string): Promise<ChatRoomDocument[]> {
-    return this.chatRoomModel.find({ participants: userId }).sort({ createdAt: -1 }).lean();
+  async getUserChats(userId: string, opts?: { userLookup?: boolean }): Promise<ChatRoomDocument[]> {
+    return await this.chatRoomModel.aggregate([
+      {
+        $match: {
+          participants: new Types.ObjectId(userId)
+        }
+      },
+      {
+        $sort: {
+          updatedAt: -1
+        }
+      },
+      ...(opts?.userLookup ? [{
+        $lookup: {
+          from: 'users',
+          localField: 'participants',
+          foreignField: '_id',
+          as: 'participants',
+          pipeline: [
+            {
+              $project: this.userService.projection
+            }
+          ]
+        }
+      }] : [])
+    ])
   }
 
   /**
    * Helper to check if user is a participant in the chat room
    */
-  private async ensureParticipant(chatId: string, userId: string) {
-    const chatRoom = await this.chatRoomModel.findById(chatId);
-    if (!chatRoom || !chatRoom.participants.map(String).includes(String(userId))) {
+  async ensureParticipant(chatId: string, userId: string, opts?: { userLookup?: boolean }) {
+    const [chatRoom] = await this.chatRoomModel.aggregate([
+      {
+        $match: {
+          _id: new Types.ObjectId(chatId)
+        }
+      },
+      ...(opts?.userLookup ? [{
+        $lookup: {
+          from: 'users',
+          localField: 'participants',
+          foreignField: '_id',
+          as: 'participants',
+          pipeline: [
+            {
+              $project: this.userService.projection
+            }
+          ]
+        }
+      }] : [])
+    ]);
+
+    if (!chatRoom || !chatRoom.participants.map((p: any) => String(p?._id)).includes(String(userId))) {
       throw new ForbiddenException('You are not a participant in this chat room');
     }
+    return chatRoom;
   }
 
   /**
@@ -97,8 +144,8 @@ export class ChatService {
   async getMessages(chatId: string, page = 1, limit = 20, userId: string): Promise<MessageDocument[]> {
     if (userId) await this.ensureParticipant(chatId, userId);
     return this.messageModel
-      .find({ chatId })
-      .sort({ sentAt: -1 })
+      .find({ chatId: new Types.ObjectId(chatId) })
+      .sort({ sentAt: 1 })
       .skip((page - 1) * limit)
       .limit(limit)
       .lean();
