@@ -18,6 +18,7 @@ import { ChatModule } from './chat/chat.module';
 import { CouponModule } from './coupon/coupon.module';
 import { FlashDealModule } from './flash-deal/flash-deal.module';
 import { TagModule } from './tag/tag.module';
+import { FavoritesModule } from './favorites/favorites.module';
 
 /**
  * Root application module
@@ -67,6 +68,7 @@ import { TagModule } from './tag/tag.module';
     CouponModule,
     FlashDealModule,
     TagModule,
+    FavoritesModule,
   ],
   controllers: [AppController],
   providers: [AppService, JwtStrategy],
