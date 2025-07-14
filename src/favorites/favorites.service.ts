@@ -13,22 +13,22 @@ export class FavoritesService {
    * Add a service to user's favorites
    */
   async addToFavorites(userId: string, createFavoriteDto: CreateFavoriteDto): Promise<Favorite> {
-    const { serviceId } = createFavoriteDto;
+    const { influencerId } = createFavoriteDto;
 
-    // Validate serviceId format
-    if (!Types.ObjectId.isValid(serviceId)) {
-      throw new BadRequestException('Invalid service ID format');
+    // Validate influencerId format
+    if (!Types.ObjectId.isValid(influencerId)) {
+      throw new BadRequestException('Invalid influencer ID format');
     }
 
     // Check if favorite already exists
     const existingFavorite = await this.favoriteModel.findOne({
       userId: new Types.ObjectId(userId),
-      serviceId: new Types.ObjectId(serviceId),
+      influencerId: new Types.ObjectId(influencerId),
     });
 
     if (existingFavorite) {
       if (existingFavorite.isActive) {
-        throw new ConflictException('Service is already in favorites');
+        throw new ConflictException('Influencer is already in favorites');
       } else {
         // Reactivate the favorite
         existingFavorite.isActive = true;
@@ -39,7 +39,7 @@ export class FavoritesService {
     // Create new favorite
     const favorite = new this.favoriteModel({
       userId: new Types.ObjectId(userId),
-      serviceId: new Types.ObjectId(serviceId),
+      influencerId: new Types.ObjectId(influencerId),
       isActive: true,
     });
 
@@ -49,14 +49,14 @@ export class FavoritesService {
   /**
    * Remove a service from user's favorites (soft delete)
    */
-  async removeFromFavorites(userId: string, serviceId: string): Promise<{ message: string }> {
-    if (!Types.ObjectId.isValid(serviceId)) {
-      throw new BadRequestException('Invalid service ID format');
+  async removeFromFavorites(userId: string, influencerId: string): Promise<{ message: string }> {
+    if (!Types.ObjectId.isValid(influencerId)) {
+      throw new BadRequestException('Invalid influencer ID format');
     }
 
     const favorite = await this.favoriteModel.findOne({
       userId: new Types.ObjectId(userId),
-      serviceId: new Types.ObjectId(serviceId),
+      influencerId: new Types.ObjectId(influencerId),
       isActive: true,
     });
 
@@ -67,7 +67,7 @@ export class FavoritesService {
     favorite.isActive = false;
     await favorite.save();
 
-    return { message: 'Service removed from favorites successfully' };
+    return { message: 'Influencer removed from favorites successfully' };
   }
 
   /**
@@ -83,14 +83,9 @@ export class FavoritesService {
         isActive: true,
       })
       .populate({
-        path: 'serviceId',
-        model: 'InfluencerServices',
-        select: 'title description imageUrl price type duration requireTimeSlot collaborationDetails',
-        populate: {
-          path: 'createdBy',
-          model: 'User',
-          select: 'name profileImage role',
-        },
+        path: 'influencerId',
+        model: 'User',
+        select: 'name profileImage role bio socialMedia',
       })
       .sort({ createdAt: -1 })
       .skip(skip)
@@ -120,14 +115,14 @@ export class FavoritesService {
   /**
    * Check if a service is in user's favorites
    */
-  async isServiceInFavorites(userId: string, serviceId: string): Promise<boolean> {
-    if (!Types.ObjectId.isValid(serviceId)) {
+  async isInfluencerInFavorites(userId: string, influencerId: string): Promise<boolean> {
+    if (!Types.ObjectId.isValid(influencerId)) {
       return false;
     }
 
     const favorite = await this.favoriteModel.findOne({
       userId: new Types.ObjectId(userId),
-      serviceId: new Types.ObjectId(serviceId),
+      influencerId: new Types.ObjectId(influencerId),
       isActive: true,
     });
 

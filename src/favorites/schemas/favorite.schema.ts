@@ -13,8 +13,8 @@ export class Favorite {
   @Prop({ required: true, type: Types.ObjectId, ref: 'User' })
   userId: Types.ObjectId;
 
-  @Prop({ required: true, type: Types.ObjectId, ref: 'InfluencerServices' })
-  serviceId: Types.ObjectId;
+  @Prop({ required: true, type: Types.ObjectId, ref: 'User' })
+  influencerId: Types.ObjectId;
 
   @Prop({ default: true })
   isActive: boolean;
@@ -22,5 +22,5 @@ export class Favorite {
 
 export const FavoriteSchema = SchemaFactory.createForClass(Favorite);
 
-// Create compound index to ensure a user can only favorite a service once
-FavoriteSchema.index({ userId: 1, serviceId: 1 }, { unique: true }); 
+// Create compound index to ensure a user can only favorite an influencer once
+FavoriteSchema.index({ userId: 1, influencerId: 1 }, { unique: true }); 

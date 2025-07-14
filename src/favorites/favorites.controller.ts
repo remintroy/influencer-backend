@@ -18,21 +18,21 @@ export class FavoritesController {
 
   @Post()
   @ApiOperation({
-    summary: 'Add service to favorites',
-    description: 'Add an influencer service to user favorites. Only authenticated users can add favorites.',
+    summary: 'Add influencer to favorites',
+    description: 'Add an influencer to user favorites. Only authenticated users can add favorites.',
   })
   @ApiResponse({
     status: 201,
-    description: 'Service added to favorites successfully',
+    description: 'Influencer added to favorites successfully',
     type: FavoriteResponseDto,
   })
   @ApiResponse({
     status: 409,
-    description: 'Service is already in favorites',
+    description: 'Influencer is already in favorites',
   })
   @ApiResponse({
     status: 400,
-    description: 'Invalid service ID format',
+    description: 'Invalid influencer ID format',
   })
   @Roles(UserRole.USER, UserRole.ADMIN)
   async addToFavorites(@Req() req: Request, @Body() createFavoriteDto: CreateFavoriteDto) {
@@ -40,25 +40,25 @@ export class FavoritesController {
     return await this.favoritesService.addToFavorites(userId, createFavoriteDto);
   }
 
-  @Delete(':serviceId')
+  @Delete(':influencerId')
   @ApiOperation({
-    summary: 'Remove service from favorites',
-    description: 'Remove an influencer service from user favorites.',
+    summary: 'Remove influencer from favorites',
+    description: 'Remove an influencer from user favorites.',
   })
   @ApiParam({
-    name: 'serviceId',
-    description: 'ID of the service to remove from favorites',
+    name: 'influencerId',
+    description: 'ID of the influencer to remove from favorites',
     example: '507f1f77bcf86cd799439011',
   })
   @ApiResponse({
     status: 200,
-    description: 'Service removed from favorites successfully',
+    description: 'Influencer removed from favorites successfully',
     schema: {
       type: 'object',
       properties: {
         message: {
           type: 'string',
-          example: 'Service removed from favorites successfully',
+          example: 'Influencer removed from favorites successfully',
         },
       },
     },
@@ -69,12 +69,12 @@ export class FavoritesController {
   })
   @ApiResponse({
     status: 400,
-    description: 'Invalid service ID format',
+    description: 'Invalid influencer ID format',
   })
   @Roles(UserRole.USER, UserRole.INFLUENCER, UserRole.ADMIN)
-  async removeFromFavorites(@Req() req: Request, @Param('serviceId') serviceId: string) {
+  async removeFromFavorites(@Req() req: Request, @Param('influencerId') influencerId: string) {
     const userId = req.user?.userId as string;
-    return await this.favoritesService.removeFromFavorites(userId, serviceId);
+    return await this.favoritesService.removeFromFavorites(userId, influencerId);
   }
 
   @Get()
@@ -107,11 +107,11 @@ export class FavoritesController {
             properties: {
               _id: { type: 'string' },
               userId: { type: 'string' },
-              serviceId: { type: 'string' },
+              influencerId: { type: 'string' },
               isActive: { type: 'boolean' },
               createdAt: { type: 'string' },
               updatedAt: { type: 'string' },
-              service: { type: 'object' },
+              influencer: { type: 'object' },
             },
           },
         },
@@ -135,14 +135,14 @@ export class FavoritesController {
     return await this.favoritesService.getUserFavorites(userId, paginationQuery);
   }
 
-  @Get('check/:serviceId')
+  @Get('check/:influencerId')
   @ApiOperation({
-    summary: 'Check if service is in favorites',
-    description: 'Check if a specific service is in the user favorites.',
+    summary: 'Check if influencer is in favorites',
+    description: 'Check if a specific influencer is in the user favorites.',
   })
   @ApiParam({
-    name: 'serviceId',
-    description: 'ID of the service to check',
+    name: 'influencerId',
+    description: 'ID of the influencer to check',
     example: '507f1f77bcf86cd799439011',
   })
   @ApiResponse({
@@ -159,9 +159,9 @@ export class FavoritesController {
     },
   })
   @Roles(UserRole.USER, UserRole.INFLUENCER, UserRole.ADMIN)
-  async checkIfFavorite(@Req() req: Request, @Param('serviceId') serviceId: string) {
+  async checkIfFavorite(@Req() req: Request, @Param('influencerId') influencerId: string) {
     const userId = req.user?.userId as string;
-    const isFavorite = await this.favoritesService.isServiceInFavorites(userId, serviceId);
+    const isFavorite = await this.favoritesService.isInfluencerInFavorites(userId, influencerId);
     return { isFavorite };
   }
 

@@ -14,10 +14,10 @@ export class FavoriteResponseDto {
   userId: string;
 
   @ApiProperty({
-    description: 'Influencer service ID',
+    description: 'Influencer ID',
     example: '507f1f77bcf86cd799439013',
   })
-  serviceId: string;
+  influencerId: string;
 
   @ApiProperty({
     description: 'Whether the favorite is active',
@@ -38,9 +38,9 @@ export class FavoriteResponseDto {
   updatedAt: Date;
 
   @ApiProperty({
-    description: 'Influencer service details',
+    description: 'Influencer details',
     type: 'object',
     additionalProperties: true,
   })
-  service?: any;
+  influencer?: any;
 } 
