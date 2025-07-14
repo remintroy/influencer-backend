@@ -45,30 +45,25 @@ export class OrderService {
           throw new BadRequestException(`No users found for service ${item.serviceId}`);
         }
 
-        // Check availability for all users if service requires time slot
-        if (service.requireTimeSlot) {
-          const availabilityChecks = await Promise.all(
-            service.users.map(userId =>
-              this.availabilityService.checkInfluencerAvailability(
-                userId.toString(),
-                item.bookingDate,
-                item.startTime!,
-                item.endTime!,
-              )
-            )
-          );
+        // Validate location if required
+        if (service.locationRequired && (!item.location || item.location.trim() === '')) {
+          throw new BadRequestException('Location is required for this service');
+        }
 
-          if (availabilityChecks.some(check => !check.isAvailable)) {
-            throw new BadRequestException(`Time slot not available for one or more influencers in service ${item.serviceId}`);
-          }
+        // Validate deliveryDate is at least minimumDaysForCompletion from today
+        const today = new Date();
+        today.setHours(0,0,0,0);
+        const minDate = new Date(today);
+        minDate.setDate(today.getDate() + (service.minimumDaysForCompletion || 1));
+        if (!item.deliveryDate || item.deliveryDate < minDate) {
+          throw new BadRequestException(`Delivery date must be at least ${service.minimumDaysForCompletion || 1} days from today.`);
         }
 
         return {
           serviceId: item.serviceId,
           influencerIds: service.users.map(id => new Types.ObjectId(id)),
-          bookingDate: item.bookingDate,
-          startTime: item.startTime,
-          endTime: item.endTime,
+          deliveryDate: item.deliveryDate,
+          location: item.location,
           price: item.price,
         };
       })

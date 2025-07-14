@@ -28,14 +28,11 @@ export class OrderItem {
   @Prop({ type: [{ type: Types.ObjectId, ref: 'User' }], required: true })
   influencerIds: Types.ObjectId[];
 
-  @Prop({ required: true })
-  bookingDate: Date;
+  @Prop({ type: Date, required: true })
+  deliveryDate: Date;
 
-  @Prop()
-  startTime?: string;
-
-  @Prop()
-  endTime?: string;
+  @Prop({ type: String })
+  location?: string;
 
   @Prop({ required: true, min: 0 })
   price: number;

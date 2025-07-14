@@ -36,8 +36,14 @@ export class InfluencerServices {
   @Prop({ type: Number, default: 0 })
   price?: number;
 
+  @Prop({ required: true, type: Number, min: 1 })
+  minimumDaysForCompletion: number;
+
+  // @Prop({ default: false, type: Boolean })
+  // requireTimeSlot?: boolean;
+
   @Prop({ default: false, type: Boolean })
-  requireTimeSlot?: boolean;
+  locationRequired?: boolean;
 
   @Prop({ default: 0, type: Number })
   duration?: number;

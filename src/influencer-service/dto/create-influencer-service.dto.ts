@@ -23,13 +23,22 @@ export class CreateInfluencerServiceDto {
   @IsUrl()
   imageUrl: string;
 
+  // @ApiProperty({
+  //   description: 'Whether the service requires time slot booking',
+  //   example: true,
+  // })
+  // @IsBoolean()
+  // @IsOptional()
+  // requireTimeSlot?: boolean;
+
   @ApiProperty({
-    description: 'Whether the service requires time slot booking',
-    example: true,
+    description: 'Whether the service requires a physical location',
+    example: false,
+    default: false,
   })
   @IsBoolean()
   @IsOptional()
-  requireTimeSlot?: boolean;
+  locationRequired?: boolean;
 
   @ApiPropertyOptional({
     description: 'Price of the service',
@@ -50,4 +59,13 @@ export class CreateInfluencerServiceDto {
   @IsNumber()
   @Min(0)
   duration?: number;
+
+  @ApiProperty({
+    description: 'Minimum number of days required to complete the service',
+    example: 3,
+    minimum: 1,
+  })
+  @IsNumber()
+  @Min(1)
+  minimumDaysForCompletion: number;
 }

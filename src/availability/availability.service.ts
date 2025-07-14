@@ -649,120 +649,120 @@ export class AvailabilityService {
   // ----------------------------------------------------------------------------------------------------------------------------------
   // ----------------------------------------------------------------------------------------------------------------------------------
 
-  async getInfluencerSchedule(
-    influencerId: string,
-    startDate: Date,
-    endDate: Date,
-  ): Promise<{
-    schedule: {
-      date: Date;
-      timeSlots: TimeSlot[];
-      totalAvailable: number;
-      totalBooked: number;
-      totalUnavailable: number;
-      availableTimeRanges: { startTime: string; endTime: string }[];
-      bookedTimeRanges: { startTime: string; endTime: string; bookingId: string }[];
-    }[];
-    summary: {
-      totalDays: number;
-      totalAvailableSlots: number;
-      totalBookedSlots: number;
-      totalUnavailableSlots: number;
-      averageAvailabilityPerDay: number;
-      bookingRate: number;
-    };
-  }> {
-    try {
-      const availabilities = await this.availabilityModel
-        .find({
-          influencerId: new Types.ObjectId(influencerId),
-          date: {
-            $gte: new Date(startDate),
-            $lte: new Date(endDate),
-          },
-        })
-        .sort({ date: 1 });
-
-      let totalAvailableSlots = 0;
-      let totalBookedSlots = 0;
-      let totalUnavailableSlots = 0;
-
-      const schedule = availabilities.map((availability) => {
-        const timeSlots = availability.timeSlots;
-        const availableSlots = timeSlots.filter((slot) => slot.status === TimeSlotStatus.AVAILABLE);
-        const bookedSlots = timeSlots.filter((slot) => slot.status === TimeSlotStatus.BOOKED);
-        const unavailableSlots = timeSlots.filter((slot) => slot.status === TimeSlotStatus.UNAVAILABLE);
-
-        // Update totals
-        totalAvailableSlots += availableSlots.length;
-        totalBookedSlots += bookedSlots.length;
-        totalUnavailableSlots += unavailableSlots.length;
-
-        // Group consecutive available slots into ranges
-        const availableTimeRanges = this.groupConsecutiveSlots(availableSlots);
-
-        // Group booked slots with their booking IDs
-        const bookedTimeRanges = bookedSlots.map((slot) => ({
-          startTime: slot.startTime,
-          endTime: slot.endTime,
-          bookingId: slot.bookingId?.toString() || '',
-        }));
-
-        return {
-          date: availability.date,
-          timeSlots,
-          totalAvailable: availableSlots.length,
-          totalBooked: bookedSlots.length,
-          totalUnavailable: unavailableSlots.length,
-          availableTimeRanges,
-          bookedTimeRanges,
-        };
-      });
-
-      const totalDays = schedule.length;
-      const summary = {
-        totalDays,
-        totalAvailableSlots,
-        totalBookedSlots,
-        totalUnavailableSlots,
-        averageAvailabilityPerDay: totalDays > 0 ? totalAvailableSlots / totalDays : 0,
-        bookingRate:
-          totalAvailableSlots + totalBookedSlots > 0 ? (totalBookedSlots / (totalAvailableSlots + totalBookedSlots)) * 100 : 0,
-      };
-
-      return { schedule, summary };
-    } catch (error) {
-      throw new InternalServerErrorException('Error fetching schedule');
-    }
-  }
-
-  private groupConsecutiveSlots(slots: TimeSlot[]): { startTime: string; endTime: string }[] {
-    if (!slots.length) return [];
-
-    const sortedSlots = [...slots].sort((a, b) => a.startTime.localeCompare(b.startTime));
-    const ranges: { startTime: string; endTime: string }[] = [];
-    let currentRange = { startTime: sortedSlots[0].startTime, endTime: sortedSlots[0].endTime };
-
-    for (let i = 1; i < sortedSlots.length; i++) {
-      const currentSlot = sortedSlots[i];
-      const [currentEndHour, currentEndMin] = currentRange.endTime.split(':').map(Number);
-      const [nextStartHour, nextStartMin] = currentSlot.startTime.split(':').map(Number);
-
-      const currentEndMinutes = currentEndHour * 60 + currentEndMin;
-      const nextStartMinutes = nextStartHour * 60 + nextStartMin;
-
-      if (nextStartMinutes === currentEndMinutes) {
-        // Slots are consecutive, extend the current range
-        currentRange.endTime = currentSlot.endTime;
-      } else {
-        // Gap found, save current range and start a new one
-        ranges.push({ ...currentRange });
-        currentRange = { startTime: currentSlot.startTime, endTime: currentSlot.endTime };
-      }
-    }
-
-    // Add the last range
-    ranges.push(currentRange);
-    return ranges;
-  }
+  // async getInfluencerSchedule(
+  //   influencerId: string,
+  //   startDate: Date,
+  //   endDate: Date,
+  // ): Promise<{
+  //   schedule: {
+  //     date: Date;
+  //     timeSlots: TimeSlot[];
+  //     totalAvailable: number;
+  //     totalBooked: number;
+  //     totalUnavailable: number;
+  //     availableTimeRanges: { startTime: string; endTime: string }[];
+  //     bookedTimeRanges: { startTime: string; endTime: string; bookingId: string }[];
+  //   }[];
+  //   summary: {
+  //     totalDays: number;
+  //     totalAvailableSlots: number;
+  //     totalBookedSlots: number;
+  //     totalUnavailableSlots: number;
+  //     averageAvailabilityPerDay: number;
+  //     bookingRate: number;
+  //   };
+  // }> {
+  //   try {
+  //     const availabilities = await this.availabilityModel
+  //       .find({
+  //         influencerId: new Types.ObjectId(influencerId),
+  //         date: {
+  //           $gte: new Date(startDate),
+  //           $lte: new Date(endDate),
+  //         },
+  //       })
+  //       .sort({ date: 1 });
+  //
+  //     let totalAvailableSlots = 0;
+  //     let totalBookedSlots = 0;
+  //     let totalUnavailableSlots = 0;
+  //
+  //     const schedule = availabilities.map((availability) => {
+  //       const timeSlots = availability.timeSlots;
+  //       const availableSlots = timeSlots.filter((slot) => slot.status === TimeSlotStatus.AVAILABLE);
+  //       const bookedSlots = timeSlots.filter((slot) => slot.status === TimeSlotStatus.BOOKED);
+  //       const unavailableSlots = timeSlots.filter((slot) => slot.status === TimeSlotStatus.UNAVAILABLE);
+  //
+  //       // Update totals
+  //       totalAvailableSlots += availableSlots.length;
+  //       totalBookedSlots += bookedSlots.length;
+  //       totalUnavailableSlots += unavailableSlots.length;
+  //
+  //       // Group consecutive available slots into ranges
+  //       const availableTimeRanges = this.groupConsecutiveSlots(availableSlots);
+  //
+  //       // Group booked slots with their booking IDs
+  //       const bookedTimeRanges = bookedSlots.map((slot) => ({
+  //         startTime: slot.startTime,
+  //         endTime: slot.endTime,
+  //         bookingId: slot.bookingId?.toString() || '',
+  //       }));
+  //
+  //       return {
+  //         date: availability.date,
+  //         timeSlots,
+  //         totalAvailable: availableSlots.length,
+  //         totalBooked: bookedSlots.length,
+  //         totalUnavailable: unavailableSlots.length,
+  //         availableTimeRanges,
+  //         bookedTimeRanges,
+  //       };
+  //     });
+  //
+  //     const totalDays = schedule.length;
+  //     const summary = {
+  //       totalDays,
+  //       totalAvailableSlots,
+  //       totalBookedSlots,
+  //       totalUnavailableSlots,
+  //       averageAvailabilityPerDay: totalDays > 0 ? totalAvailableSlots / totalDays : 0,
+  //       bookingRate:
+  //         totalAvailableSlots + totalBookedSlots > 0 ? (totalBookedSlots / (totalAvailableSlots + totalBookedSlots)) * 100 : 0,
+  //     };
+  //
+  //     return { schedule, summary };
+  //   } catch (error) {
+  //     throw new InternalServerErrorException('Error fetching schedule');
+  //   }
+  // }
+  //
+  // private groupConsecutiveSlots(slots: TimeSlot[]): { startTime: string; endTime: string }[] {
+  //   if (!slots.length) return [];
+  //
+  //   const sortedSlots = [...slots].sort((a, b) => a.startTime.localeCompare(b.startTime));
+  //   const ranges: { startTime: string; endTime: string }[] = [];
+  //   let currentRange = { startTime: sortedSlots[0].startTime, endTime: sortedSlots[0].endTime };
+  //
+  //   for (let i = 1; i < sortedSlots.length; i++) {
+  //     const currentSlot = sortedSlots[i];
+  //     const [currentEndHour, currentEndMin] = currentRange.endTime.split(':').map(Number);
+  //     const [nextStartHour, nextStartMin] = currentSlot.startTime.split(':').map(Number);
+  //
+  //     const currentEndMinutes = currentEndHour * 60 + currentEndMin;
+  //     const nextStartMinutes = nextStartHour * 60 + nextStartMin;
+  //
+  //     if (nextStartMinutes === currentEndMinutes) {
+  //       // Slots are consecutive, extend the current range
+  //       currentRange.endTime = currentSlot.endTime;
+  //     } else {
+  //       // Gap found, save current range and start a new one
+  //       ranges.push({ ...currentRange });
+  //       currentRange = { startTime: currentSlot.startTime, endTime: currentSlot.endTime };
+  //     }
+  //   }
+  //
+  //   // Add the last range
+  //   ranges.push(currentRange);
+  //   return ranges;
+  // }
 }

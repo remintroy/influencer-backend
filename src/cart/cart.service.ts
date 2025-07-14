@@ -44,22 +44,22 @@ export class CartService {
       throw new BadRequestException('No users found for this service');
     }
 
-    // Check availability for all users if service requires time slot
-    if (service.requireTimeSlot) {
-      const availabilityChecks = await Promise.all(
-        service.users.map((userId) =>
-          this.availabilityService.checkInfluencerAvailability(
-            userId.toString(),
-            addToCartDto.bookingDate,
-            addToCartDto.startTime,
-            addToCartDto.endTime,
-          ),
-        ),
-      );
+    // Set service and locationRequired on DTO for validation
+    addToCartDto.service = service;
+    addToCartDto.locationRequired = !!service.locationRequired;
 
-      if (availabilityChecks.some((check) => !check.isAvailable)) {
-        throw new BadRequestException('Selected time slot is not available for one or more influencers');
-      }
+    // Validate location if required
+    if (service.locationRequired && (!addToCartDto.location || addToCartDto.location.trim() === '')) {
+      throw new BadRequestException('Location is required for this service');
+    }
+
+    // Validate deliveryDate is at least minimumDaysForCompletion from today
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    const minDate = new Date(today);
+    minDate.setDate(today.getDate() + (service.minimumDaysForCompletion || 1));
+    if (!addToCartDto.deliveryDate || addToCartDto.deliveryDate < minDate) {
+      throw new BadRequestException(`Delivery date must be at least ${service.minimumDaysForCompletion || 1} days from today.`);
     }
 
     // Create cart item with all users from service
@@ -67,11 +67,10 @@ export class CartService {
       _id: new Types.ObjectId(),
       serviceId: new Types.ObjectId(addToCartDto.serviceId),
       influencerIds: service.users.map((id) => new Types.ObjectId(id)),
-      bookingDate: addToCartDto.bookingDate,
+      deliveryDate: addToCartDto.deliveryDate,
+      location: addToCartDto.location,
       price: service?.price! || 0,
       disabled: false,
-      ...(service.requireTimeSlot ? { startTime: addToCartDto.startTime } : {}),
-      ...(service.requireTimeSlot ? { endTime: addToCartDto.endTime } : {}),
     };
 
     // Add item to cart and update total
@@ -135,24 +134,24 @@ export class CartService {
     }
 
     // If updating time slot, validate availability for all users
-    if (updates.bookingDate || updates.startTime || updates.endTime) {
-      if (service.requireTimeSlot) {
-        const availabilityChecks = await Promise.all(
-          service.users.map((userId) =>
-            this.availabilityService.checkInfluencerAvailability(
-              userId.toString(),
-              updates.bookingDate || item.bookingDate,
-              updates.startTime || item.startTime!,
-              updates.endTime || item.endTime!,
-            ),
-          ),
-        );
+    // if (updates.bookingDate || updates.startTime || updates.endTime) {
+    //   if (service.requireTimeSlot) {
+    //     const availabilityChecks = await Promise.all(
+    //       service.users.map((userId) =>
+    //         this.availabilityService.checkInfluencerAvailability(
+    //           userId.toString(),
+    //           updates.bookingDate || item.bookingDate,
+    //           updates.startTime || item.startTime!,
+    //           updates.endTime || item.endTime!,
+    //         ),
+    //       ),
+    //     );
 
-        if (availabilityChecks.some((check) => !check.isAvailable)) {
-          throw new BadRequestException('Selected time slot is not available for one or more influencers');
-        }
-      }
-    }
+    //     if (availabilityChecks.some((check) => !check.isAvailable)) {
+    //       throw new BadRequestException('Selected time slot is not available for one or more influencers');
+    //     }
+    //   }
+    // }
 
     // Update item with latest user IDs from service
     Object.assign(item, {
@@ -188,24 +187,24 @@ export class CartService {
       // Update influencer IDs with latest from service
       item.influencerIds = service.users.map((id) => new Types.ObjectId(id));
 
-      if (service.requireTimeSlot) {
-        // Check availability for all users
-        const availabilityChecks = await Promise.all(
-          service.users.map((userId) =>
-            this.availabilityService.checkInfluencerAvailability(
-              userId.toString(),
-              item.bookingDate,
-              item.startTime!,
-              item.endTime!,
-            ),
-          ),
-        );
+      // if (service.requireTimeSlot) {
+      //   // Check availability for all users
+      //   const availabilityChecks = await Promise.all(
+      //     service.users.map((userId) =>
+      //       this.availabilityService.checkInfluencerAvailability(
+      //         userId.toString(),
+      //         item.bookingDate,
+      //         item.startTime!,
+      //         item.endTime!,
+      //       ),
+      //     ),
+      //   );
 
-        if (availabilityChecks.some((check) => !check.isAvailable)) {
-          item.disabled = true;
-          hasChanges = true;
-        }
-      }
+      //   if (availabilityChecks.some((check) => !check.isAvailable)) {
+      //     item.disabled = true;
+      //     hasChanges = true;
+      //   }
+      // }
     }
 
     if (hasChanges) {

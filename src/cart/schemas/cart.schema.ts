@@ -29,14 +29,14 @@ export class CartItem {
   @Prop({ type: [{ type: Types.ObjectId, ref: 'User' }], required: true })
   influencerIds: Types.ObjectId[];
 
+  @Prop({ type: Date, required: false })
+  bookingDate?: Date;
+
   @Prop({ type: Date, required: true })
-  bookingDate: Date;
+  deliveryDate: Date;
 
   @Prop({ type: String })
-  startTime?: string;
-
-  @Prop({ type: String })
-  endTime?: string;
+  location?: string;
 
   @Prop({ type: Number, required: true })
   price: number;
