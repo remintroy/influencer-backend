@@ -75,10 +75,15 @@ export class OrderController {
   @ApiOperation({ summary: 'Sign contract for an order (user or influencer)' })
   @ApiParam({ name: 'orderId', description: 'Order ID' })
   @Roles(UserRole.USER, UserRole.INFLUENCER)
-  async signContract(@Req() req: Request, @Param('orderId') orderId: string) {
+  async signContract(
+    @Req() req: Request,
+    @Param('orderId') orderId: string,
+    @Body('role') role: 'user' | 'influencer',
+    @Body('signatureImage') signatureImage?: string,
+  ) {
     const userId = req?.user?.userId!;
-    const role = req?.user?.role!;
-    return this.orderService.signContract(orderId, userId, role);
+    const userRole = role === 'user' ? UserRole.USER : UserRole.INFLUENCER;
+    return this.orderService.signContract(orderId, userId, userRole, signatureImage);
   }
 
   @Get(':orderId/contract/status')

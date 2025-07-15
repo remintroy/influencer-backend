@@ -19,6 +19,7 @@ import { UserModule } from 'src/user/user.module';
 import { MongooseModule } from '@nestjs/mongoose';
 import { User, UserSchema } from 'src/user/schemas/user.schema';
 import { InfluencerServices, InfluencerServicesSchema, Contract, ContractSchema } from './schemas/influencer-service.schema';
+import { ContractController } from './contract.controller';
 
 @Module({
   imports: [
@@ -32,7 +33,7 @@ import { InfluencerServices, InfluencerServicesSchema, Contract, ContractSchema 
       { name: Contract.name, schema: ContractSchema },
     ]),
   ],
-  controllers: [InfluencerServiceController],
+  controllers: [InfluencerServiceController, ContractController],
   providers: [InfluencerServiceService, UserService],
   // Export InfluencerServiceService for use in other modules
   exports: [InfluencerServiceService],

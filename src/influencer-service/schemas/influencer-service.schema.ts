@@ -26,6 +26,12 @@ export class Contract {
 
   @Prop({ type: Types.ObjectId, ref: 'InfluencerServices', required: true })
   serviceId: Types.ObjectId;
+
+  @Prop({ type: String })
+  userSignatureImage?: string;
+
+  @Prop({ type: String })
+  influencerSignatureImage?: string;
 }
 
 export const ContractSchema = SchemaFactory.createForClass(Contract);

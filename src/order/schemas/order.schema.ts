@@ -37,6 +37,8 @@ export class OrderItem {
       clientSigned: { type: Boolean, default: false },
       influencerSigned: { type: Boolean, default: false },
       signedAt: { type: Date },
+      clientSignatureImage: { type: String },
+      influencerSignatureImage: { type: String },
     },
     required: false,
     default: undefined,
@@ -46,6 +48,8 @@ export class OrderItem {
     clientSigned?: boolean;
     influencerSigned?: boolean;
     signedAt?: Date;
+    clientSignatureImage?: string;
+    influencerSignatureImage?: string;
   };
 
   @Prop({ type: Date, required: true })

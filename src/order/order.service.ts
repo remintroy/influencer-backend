@@ -195,7 +195,7 @@ export class OrderService {
     return this.orderModel.findById(orderId);
   }
 
-  async signContract(orderId: string, userId: string, role: UserRole) {
+  async signContract(orderId: string, userId: string, role: UserRole, signatureImage?: string) {
     const order = await this.orderModel.findById(orderId);
     if (!order) throw new NotFoundException('Order not found');
     const item = order.item;
@@ -215,9 +215,11 @@ export class OrderService {
     }
     if (role === UserRole.USER) {
       item.contractSignatures.clientSigned = true;
+      if (signatureImage) item.contractSignatures.clientSignatureImage = signatureImage;
     }
     if (role === UserRole.INFLUENCER) {
       item.contractSignatures.influencerSigned = true;
+      if (signatureImage) item.contractSignatures.influencerSignatureImage = signatureImage;
     }
     if (item.contractSignatures.clientSigned && item.contractSignatures.influencerSigned) {
       item.contractSignatures.signedAt = new Date();
@@ -227,6 +229,8 @@ export class OrderService {
       clientSigned: item.contractSignatures.clientSigned || false,
       influencerSigned: item.contractSignatures.influencerSigned || false,
       signedAt: item.contractSignatures.signedAt,
+      clientSignatureImage: item.contractSignatures.clientSignatureImage,
+      influencerSignatureImage: item.contractSignatures.influencerSignatureImage,
     };
   }
 
