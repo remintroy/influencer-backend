@@ -159,9 +159,7 @@ export class OrderService {
     if (!item) {
       throw new BadRequestException('Order item not found');
     }
-    if (item.status !== OrderStatus.APPROVED) {
-      throw new BadRequestException('Order must be approved before payment.');
-    }
+    // Only require both signatures before payment
     if (!item.contractSignatures?.clientSigned || !item.contractSignatures?.influencerSigned) {
       throw new BadRequestException('Both client and influencer must sign the contract before payment.');
     }
@@ -250,8 +248,8 @@ export class OrderService {
 
   private validateStatusTransition(currentStatus: OrderStatus, newStatus: OrderStatus, userRole: UserRole): void {
     const validTransitions: Record<OrderStatus, OrderStatus[]> = {
-      [OrderStatus.PENDING]: [OrderStatus.APPROVED, OrderStatus.REJECTED],
-      [OrderStatus.APPROVED]: [OrderStatus.PAID, OrderStatus.REJECTED],
+      [OrderStatus.PENDING]: [OrderStatus.PAID, OrderStatus.REJECTED],
+      [OrderStatus.APPROVED]: [],
       [OrderStatus.PAID]: [OrderStatus.IN_PROGRESS],
       [OrderStatus.IN_PROGRESS]: [OrderStatus.COMPLETED],
       [OrderStatus.REJECTED]: [],
@@ -269,8 +267,8 @@ export class OrderService {
         throw new BadRequestException('Users can only update order status to PAID');
       }
     } else if (userRole === UserRole.INFLUENCER) {
-      if (![OrderStatus.APPROVED, OrderStatus.REJECTED, OrderStatus.IN_PROGRESS, OrderStatus.COMPLETED].includes(newStatus)) {
-        throw new BadRequestException('Influencers can only approve, reject, or update progress of orders');
+      if (![OrderStatus.REJECTED, OrderStatus.IN_PROGRESS, OrderStatus.COMPLETED].includes(newStatus)) {
+        throw new BadRequestException('Influencers can only reject or update progress of orders');
       }
     }
   }
