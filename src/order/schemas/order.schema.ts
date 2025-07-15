@@ -22,7 +22,7 @@ export enum PaymentStatus {
 export class OrderItem {
   _id: Types.ObjectId;
 
-  @Prop({ type: Types.ObjectId, required: true, ref: 'InfluencerService' })
+  @Prop({ type: Types.ObjectId, required: true, ref: 'InfluencerServices' })
   serviceId: Types.ObjectId;
 
   @Prop({ type: [{ type: Types.ObjectId, ref: 'User' }], required: true })
@@ -89,6 +89,9 @@ export class Order extends Document {
 
   @Prop()
   paymentDate?: Date;
+
+  @Prop({ type: Types.ObjectId, ref: 'Payment' })
+  paymentId?: Types.ObjectId;
 
   @Prop({ type: Date })
   completedAt?: Date;

@@ -51,6 +51,6 @@ export class AddToCartDto {
   location?: string;
 
   // This will be set in the service, not by the client
-  locationRequired?: boolean;
-  service?: any;
+  // locationRequired?: boolean;
+  // service?: any;
 }

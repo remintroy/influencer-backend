@@ -216,7 +216,16 @@ export class UserService {
                 localField: '_id',
                 foreignField: 'users',
                 as: 'services',
-                pipeline: [...(options?.serviceType ? [{ $match: { type: options?.serviceType } }] : [])],
+                pipeline: [
+                  ...(options?.serviceType ? [{ $match: { type: options?.serviceType } }] : []),
+                  { $lookup: { from: 'contracts', as: 'contractData', localField: 'contract', foreignField: '_id' } },
+                  {
+                    $unwind: {
+                      path: '$contractData',
+                      preserveNullAndEmptyArrays: true,
+                    },
+                  },
+                ],
               },
             },
             { $match: { 'services.0': { $exists: true } } },
@@ -230,7 +239,25 @@ export class UserService {
             { $limit: limit },
             { $lookup: { from: 'categories', localField: 'category', foreignField: '_id', as: 'category' } },
             ...(!hasService
-              ? [{ $lookup: { from: 'influencerservices', localField: '_id', foreignField: 'users', as: 'services' } }]
+              ? [
+                  {
+                    $lookup: {
+                      from: 'influencerservices',
+                      localField: '_id',
+                      foreignField: 'users',
+                      as: 'services',
+                      pipeline: [
+                        { $lookup: { from: 'contracts', as: 'contractData', localField: 'contract', foreignField: '_id' } },
+                        {
+                          $unwind: {
+                            path: '$contractData',
+                            preserveNullAndEmptyArrays: true,
+                          },
+                        },
+                      ],
+                    },
+                  },
+                ]
               : []),
           ],
         },

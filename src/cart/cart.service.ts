@@ -45,8 +45,8 @@ export class CartService {
     }
 
     // Set service and locationRequired on DTO for validation
-    addToCartDto.service = service;
-    addToCartDto.locationRequired = !!service.locationRequired;
+    // addToCartDto.service = service;
+    // addToCartDto.locationRequired = !!service.locationRequired;
 
     // Validate location if required
     if (service.locationRequired && (!addToCartDto.location || addToCartDto.location.trim() === '')) {
@@ -55,7 +55,7 @@ export class CartService {
 
     // Validate deliveryDate is at least minimumDaysForCompletion from today
     const today = new Date();
-    today.setHours(0,0,0,0);
+    today.setHours(0, 0, 0, 0);
     const minDate = new Date(today);
     minDate.setDate(today.getDate() + (service.minimumDaysForCompletion || 1));
     if (!addToCartDto.deliveryDate || addToCartDto.deliveryDate < minDate) {
@@ -66,7 +66,7 @@ export class CartService {
     const cartItem: CartItem = {
       _id: new Types.ObjectId(),
       serviceId: new Types.ObjectId(addToCartDto.serviceId),
-      influencerIds: service.users.map((id) => new Types.ObjectId(id)),
+      influencerIds: service.users.map((user) => new Types.ObjectId(user?._id || user)),
       deliveryDate: addToCartDto.deliveryDate,
       location: addToCartDto.location,
       price: service?.price! || 0,
@@ -133,33 +133,14 @@ export class CartService {
       throw new BadRequestException('No users found for this service');
     }
 
-    // If updating time slot, validate availability for all users
-    // if (updates.bookingDate || updates.startTime || updates.endTime) {
-    //   if (service.requireTimeSlot) {
-    //     const availabilityChecks = await Promise.all(
-    //       service.users.map((userId) =>
-    //         this.availabilityService.checkInfluencerAvailability(
-    //           userId.toString(),
-    //           updates.bookingDate || item.bookingDate,
-    //           updates.startTime || item.startTime!,
-    //           updates.endTime || item.endTime!,
-    //         ),
-    //       ),
-    //     );
-
-    //     if (availabilityChecks.some((check) => !check.isAvailable)) {
-    //       throw new BadRequestException('Selected time slot is not available for one or more influencers');
-    //     }
-    //   }
-    // }
-
     // Update item with latest user IDs from service
-    Object.assign(item, {
-      ...updates,
-      influencerIds: service.users.map((id) => new Types.ObjectId(id)),
-    });
+    delete updates?._id;
 
-    cart.totalAmount = cart.items.reduce((sum, item) => sum + item.price, 0);
+    for (const key in updates) {
+      if (updates[key]) item[key] = updates[key];
+    }
+
+    cart.totalAmount = cart.items.reduce((sum, item) => sum + (item?.price || 0), 0);
 
     return await cart.save();
   }
@@ -185,7 +166,7 @@ export class CartService {
       }
 
       // Update influencer IDs with latest from service
-      item.influencerIds = service.users.map((id) => new Types.ObjectId(id));
+      item.influencerIds = service.users.map((user) => new Types.ObjectId(user?._id || user));
 
       // if (service.requireTimeSlot) {
       //   // Check availability for all users

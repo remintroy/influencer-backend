@@ -31,15 +31,6 @@ export class OrderController {
     return this.orderService.getUserOrders(userId);
   }
 
-  @Get('influencer')
-  @ApiOperation({ summary: 'Get all orders for the current influencer' })
-  @ApiResponse({ status: 200, description: 'Returns all orders' })
-  @Roles(UserRole.INFLUENCER)
-  async getInfluencerOrders(@Req() req: Request) {
-    const userId = req?.user?.userId!;
-    return this.orderService.getInfluencerOrders(userId);
-  }
-
   @Get(':id')
   @ApiOperation({ summary: 'Get a specific order' })
   @ApiParam({ name: 'id', description: 'Order ID' })
@@ -51,10 +42,9 @@ export class OrderController {
     return this.orderService.getOrder(userId, id);
   }
 
-  @Put(':orderId/item/:itemId/status')
+  @Put(':orderId/status')
   @ApiOperation({ summary: 'Update order status' })
   @ApiParam({ name: 'orderId', description: 'Order ID' })
-  @ApiParam({ name: 'itemId', description: 'Order ID' })
   @ApiResponse({ status: 200, description: 'Order status updated successfully' })
   @ApiResponse({ status: 400, description: 'Invalid status transition' })
   @ApiResponse({ status: 404, description: 'Order not found' })
@@ -62,31 +52,11 @@ export class OrderController {
   async updateOrderStatus(
     @Req() req: Request,
     @Param('orderId') orderId: string,
-    @Param('itemId') itemId: string,
     @Body() updateOrderStatusDto: UpdateOrderStatusDto,
   ) {
     const userId = req?.user?.userId!;
     const userRole = req?.user?.role!;
-    return this.orderService.updateOrderStatus(orderId, itemId, updateOrderStatusDto, userId, userRole);
-  }
-
-  @Put(':id/item/:itemId/status')
-  @ApiOperation({ summary: 'Update order item status' })
-  @ApiParam({ name: 'id', description: 'Order ID' })
-  @ApiParam({ name: 'itemId', description: 'Order Item ID' })
-  @ApiResponse({ status: 200, description: 'Order item status updated successfully' })
-  @ApiResponse({ status: 400, description: 'Invalid status transition' })
-  @ApiResponse({ status: 404, description: 'Order or item not found' })
-  @Roles(UserRole.USER, UserRole.INFLUENCER, UserRole.ADMIN)
-  async updateOrderItemStatus(
-    @Req() req: Request,
-    @Param('id') id: string,
-    @Param('itemId') itemId: string,
-    @Body() updateOrderStatusDto: UpdateOrderStatusDto,
-  ) {
-    const userId = req?.user?.userId!;
-    const userRole = req?.user?.role!;
-    return this.orderService.updateOrderStatus(id, itemId, updateOrderStatusDto, userId, userRole);
+    return this.orderService.updateOrderStatus(orderId, updateOrderStatusDto, userId, userRole);
   }
 
   @Post(':id/payment')
@@ -105,12 +75,9 @@ export class OrderController {
   @ApiOperation({ summary: 'Sign contract for an order (user or influencer)' })
   @ApiParam({ name: 'orderId', description: 'Order ID' })
   @Roles(UserRole.USER, UserRole.INFLUENCER)
-  async signContract(
-    @Req() req: Request,
-    @Param('orderId') orderId: string,
-    @Body('role') role: 'user' | 'influencer',
-  ) {
+  async signContract(@Req() req: Request, @Param('orderId') orderId: string) {
     const userId = req?.user?.userId!;
+    const role = req?.user?.role!;
     return this.orderService.signContract(orderId, userId, role);
   }
 
@@ -118,10 +85,7 @@ export class OrderController {
   @ApiOperation({ summary: 'Get contract signature status for an order' })
   @ApiParam({ name: 'orderId', description: 'Order ID' })
   @Roles(UserRole.USER, UserRole.INFLUENCER)
-  async getContractStatus(
-    @Req() req: Request,
-    @Param('orderId') orderId: string,
-  ) {
+  async getContractStatus(@Req() req: Request, @Param('orderId') orderId: string) {
     const userId = req?.user?.userId!;
     return this.orderService.getContractStatus(orderId, userId);
   }

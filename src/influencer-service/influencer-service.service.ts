@@ -6,14 +6,17 @@ import {
   InfluencerServicePaginationResponse,
   InfluencerServices,
   ServiceType,
+  Contract,
 } from './schemas/influencer-service.schema';
 import { isValidObjectId, Model, Types } from 'mongoose';
 import { UserService } from 'src/user/user.service';
+import { PaginationResponse } from 'src/@types/pagination-response.interface';
 
 @Injectable()
 export class InfluencerServiceService {
   constructor(
     @InjectModel(InfluencerServices.name) private readonly influencerServiceModal: Model<InfluencerServiceDocument>,
+    @InjectModel(Contract.name) private readonly contractModel: Model<Contract>,
     private readonly userService: UserService,
   ) {}
 
@@ -37,7 +40,22 @@ export class InfluencerServiceService {
       data.users.push(new Types.ObjectId(createdBy));
     }
 
-    return await this.influencerServiceModal.create({ ...data, createdBy: new Types.ObjectId(createdBy) });
+    const serviceId = new Types.ObjectId();
+
+    // Create contract with hardcoded content
+    const contract = await this.contractModel.create({
+      title: 'Default Service Contract',
+      content: 'This is a default contract for the service. Both parties must agree to the terms before proceeding.',
+      createdBy: new Types.ObjectId(createdBy),
+      serviceId: new Types.ObjectId(serviceId),
+    });
+    const service = await this.influencerServiceModal.create({
+      ...data,
+      _id: serviceId,
+      createdBy: new Types.ObjectId(createdBy),
+      contract: contract._id,
+    });
+    return this.influencerServiceModal.findById(service._id).populate('contract');
   }
 
   async updateInfluencerService(
@@ -83,94 +101,48 @@ export class InfluencerServiceService {
 
   async getInfluencerServiceByServiceId(serviceId: string) {
     if (!isValidObjectId(serviceId)) throw new BadRequestException('Invalid serviceId');
-    return (
-      await this.influencerServiceModal.aggregate([
-        { $match: { _id: new Types.ObjectId(serviceId) } },
-        {
-          $lookup: {
-            from: 'users',
-            localField: 'users',
-            foreignField: '_id',
-            as: 'users',
-            pipeline: [{ $match: this.userService.defaultQuery }, { $project: this.userService.projection }],
-          },
-        },
-      ])
-    )?.[0];
+    return this.influencerServiceModal.findById(serviceId).populate('contract');
   }
 
   async getInfluencerServicesByInfluencerId(
     influencerId: string,
     params?: { page?: number; limit?: number },
-  ): Promise<InfluencerServicePaginationResponse> {
+  ): Promise<PaginationResponse<InfluencerServices>> {
     if (!isValidObjectId(influencerId)) throw new BadRequestException('Invalid influencerId');
 
     const page = Math.max(1, Number(params?.page || 1));
     const limit = Math.max(1, Number(params?.limit || 10));
 
-    const data = await this.influencerServiceModal.aggregate([
-      {
-        $match: {
-          users: new Types.ObjectId(influencerId),
-          type: ServiceType.INDIVIDUAL,
-        },
-      },
-      {
-        $facet: {
-          metadata: [{ $count: 'totalDocs' }],
-          data: [{ $skip: (page - 1) * limit }, { $limit: limit }],
-        },
-      },
-      {
-        $project: {
-          totalDocs: { $ifNull: [{ $arrayElemAt: ['$metadata.totalDocs', 0] }, 0] },
-          page: { $literal: page },
-          limit: { $literal: limit },
-          docs: '$data',
-        },
-      },
-    ]);
-
-    return data?.[0];
+    const docs = await this.influencerServiceModal
+      .find({ users: new Types.ObjectId(influencerId), type: ServiceType.INDIVIDUAL })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .populate('contract');
+    const totalDocs = await this.influencerServiceModal.countDocuments({ users: new Types.ObjectId(influencerId), type: ServiceType.INDIVIDUAL });
+    return {
+      totalDocs,
+      page,
+      limit,
+      docs,
+    };
   }
 
-  async getCollaborationServices(params?: { page?: number; limit?: number }): Promise<InfluencerServicePaginationResponse> {
+  async getCollaborationServices(params?: { page?: number; limit?: number }): Promise<PaginationResponse<InfluencerServices>> {
     const page = Math.max(1, Number(params?.page || 1));
     const limit = Math.max(1, Number(params?.limit || 10));
 
-    const data = await this.influencerServiceModal.aggregate([
-      {
-        $match: { type: ServiceType.COLLABORATION },
-      },
-      {
-        $facet: {
-          metadata: [{ $count: 'totalDocs' }],
-          data: [
-            { $skip: (page - 1) * limit },
-            { $limit: limit },
-            {
-              $lookup: {
-                from: 'users',
-                localField: 'users',
-                foreignField: '_id',
-                as: 'users',
-                pipeline: [{ $match: this.userService.defaultQuery }, { $project: this.userService.projection }],
-              },
-            },
-          ],
-        },
-      },
-      {
-        $project: {
-          totalDocs: { $ifNull: [{ $arrayElemAt: ['$metadata.totalDocs', 0] }, 0] },
-          page: { $literal: page },
-          limit: { $literal: limit },
-          docs: '$data',
-        },
-      },
-    ]);
-
-    return data?.[0];
+    const docs = await this.influencerServiceModal
+      .find({ type: ServiceType.COLLABORATION })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .populate('contract');
+    const totalDocs = await this.influencerServiceModal.countDocuments({ type: ServiceType.COLLABORATION });
+    return {
+      totalDocs,
+      page,
+      limit,
+      docs,
+    };
   }
 
   /**
@@ -206,15 +178,22 @@ export class InfluencerServiceService {
     // Convert user IDs to ObjectIds
     const userObjectIds = data.users.map((id: any) => new Types.ObjectId(id));
 
-    // Create collaboration service
+    // Create contract with hardcoded content
+    const contract = await this.contractModel.create({
+      title: 'Default Collaboration Service Contract',
+      content: 'This is a default contract for the collaboration service. All parties must agree to the terms before proceeding.',
+      createdBy: adminUserId,
+    });
     const serviceData = {
       ...data,
       type: ServiceType.COLLABORATION,
       users: userObjectIds,
       createdBy: new Types.ObjectId(adminUserId),
+      contract: contract._id,
     };
 
-    return await this.influencerServiceModal.create(serviceData);
+    const service = await this.influencerServiceModal.create(serviceData);
+    return this.influencerServiceModal.findById(service._id).populate('contract');
   }
 
   /**

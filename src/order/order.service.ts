@@ -1,17 +1,19 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { Order, OrderStatus, PaymentStatus } from './schemas/order.schema';
+import { Order, OrderStatus } from './schemas/order.schema';
 import { CartService } from '../cart/cart.service';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 import { UserRole } from '../user/schemas/user.schema';
 import { InfluencerServiceService } from '../influencer-service/influencer-service.service';
 import { AvailabilityService } from '../availability/availability.service';
+import { Payment, PaymentStatus } from './schemas/payment.schema';
 
 @Injectable()
 export class OrderService {
   constructor(
     @InjectModel(Order.name) private orderModel: Model<Order>,
+    @InjectModel(Payment.name) private paymentModel: Model<Payment>,
     private readonly cartService: CartService,
     private readonly influencerServiceService: InfluencerServiceService,
     private readonly availabilityService: AvailabilityService,
@@ -68,7 +70,7 @@ export class OrderService {
         orderGroupId,
         item: {
           serviceId: cartItem.serviceId,
-          influencerIds: service.users.map((id) => new Types.ObjectId(id)),
+          influencerIds: service.users.map((user) => new Types.ObjectId(user?._id || user)),
           deliveryDate: cartItem.deliveryDate,
           location: cartItem.location,
           price: cartItem.price,
@@ -85,10 +87,12 @@ export class OrderService {
   }
 
   async getOrder(userId: string, orderId: string): Promise<Order> {
-    const order = await this.orderModel.findOne({
-      _id: new Types.ObjectId(orderId),
-      userId: new Types.ObjectId(userId),
-    });
+    const order = await this.orderModel
+      .findOne({
+        _id: new Types.ObjectId(orderId),
+        userId: new Types.ObjectId(userId),
+      })
+      .populate({ path: 'item.serviceId', populate: { path: 'contract' } });
 
     if (!order) {
       throw new NotFoundException('Order not found');
@@ -98,18 +102,13 @@ export class OrderService {
   }
 
   async getUserOrders(userId: string): Promise<Order[]> {
-    return this.orderModel.find({ userId: new Types.ObjectId(userId) });
-  }
-
-  async getInfluencerOrders(influencerId: string): Promise<Order[]> {
-    return this.orderModel.find({
-      'item.influencerIds': new Types.ObjectId(influencerId),
-    });
+    return this.orderModel
+      .find({ userId: new Types.ObjectId(userId) })
+      .populate({ path: 'item.serviceId', populate: { path: 'contract' } });
   }
 
   async updateOrderStatus(
     orderId: string,
-    itemId: string,
     updateOrderStatusDto: UpdateOrderStatusDto,
     userId: string,
     userRole: UserRole,
@@ -118,139 +117,97 @@ export class OrderService {
     if (!order) {
       throw new NotFoundException('Order not found');
     }
-
     const item = order.item;
     if (!item) {
       throw new NotFoundException('Order item not found');
     }
-
     // Validate user permissions
     if (userRole === UserRole.INFLUENCER) {
-      // Check if the influencer is involved in this order item
       const isInvolvedInfluencer = item.influencerIds.some((id) => id.toString() === userId);
-
       if (!isInvolvedInfluencer) {
         throw new ForbiddenException('You are not authorized to update this order item');
       }
     } else if (userRole === UserRole.USER) {
-      // Users can only update their own orders
       if (order.userId.toString() !== userId) {
         throw new ForbiddenException('You can only update your own orders');
       }
     }
-
     // Validate status transition
     this.validateStatusTransition(item.status, updateOrderStatusDto.status, userRole);
-
     // Validate rejection reason
     if (updateOrderStatusDto.status === OrderStatus.REJECTED && !updateOrderStatusDto.rejectionReason) {
       throw new BadRequestException('Rejection reason is required when rejecting an order item');
     }
-
     // Update item status
-    const update: any = {
-      'item.status': updateOrderStatusDto.status,
-    };
-
     if (updateOrderStatusDto.status === OrderStatus.REJECTED) {
-      update['item.rejectedBy'] = new Types.ObjectId(userId);
-      update['item.rejectionReason'] = updateOrderStatusDto.rejectionReason;
+      item.status = updateOrderStatusDto.status;
+      item.rejectedBy = new Types.ObjectId(userId);
+      item.rejectionReason = updateOrderStatusDto.rejectionReason;
     } else if (updateOrderStatusDto.status === OrderStatus.APPROVED) {
-      update['item.approvedBy'] = new Types.ObjectId(userId);
+      item.status = updateOrderStatusDto.status;
+      item.approvedBy = new Types.ObjectId(userId);
+    } else {
+      item.status = updateOrderStatusDto.status;
     }
-
-    const orderUpdated = await this.orderModel.findOneAndUpdate(
-      { _id: orderId },
-      { $set: update },
-      {
-        arrayFilters: [{ 'item._id': new Types.ObjectId(itemId) }],
-        new: true,
-      },
-    );
-
-    if (!orderUpdated) throw new BadRequestException('No order found');
-    return orderUpdated;
+    await order.save();
+    return order;
   }
 
-  async processPayment(orderId: string, userId: string): Promise<Order> {
+  async processPayment(orderId: string, userId: string): Promise<Order | null> {
     const order = await this.getOrder(userId, orderId);
-
-    // Get approved items
-    const approvedItems = order.item;
-    if (!approvedItems) {
-      throw new BadRequestException('No approved items to process payment');
+    const item = order.item;
+    if (!item) {
+      throw new BadRequestException('Order item not found');
     }
-
-    // Enforce contract signatures and date verification
-    if (!approvedItems.contractSignatures || !approvedItems.contractSignatures.clientSigned || !approvedItems.contractSignatures.influencerSigned) {
+    if (item.status !== OrderStatus.APPROVED) {
+      throw new BadRequestException('Order must be approved before payment.');
+    }
+    if (!item.contractSignatures?.clientSigned || !item.contractSignatures?.influencerSigned) {
       throw new BadRequestException('Both client and influencer must sign the contract before payment.');
     }
-    // Optionally, verify deliveryDate is still valid (not in the past)
-    if (!approvedItems.deliveryDate || approvedItems.deliveryDate < new Date()) {
+    if (!item.deliveryDate || item.deliveryDate < new Date()) {
       throw new BadRequestException('Delivery date is invalid or in the past.');
     }
-
-    // Calculate total for approved items
-    const totalAmount = approvedItems.price;
-
-    // TODO: Integrate with actual payment gateway
-    // For now, just simulate successful payment
-    const paymentResult = {
-      success: true,
-      paymentId: 'MOCK_PAYMENT_' + Date.now(),
-    };
-
-    if (!paymentResult.success) {
-      throw new BadRequestException('Payment failed');
-    }
-
-    // Update order with payment info and mark approved items as paid
-    const orderUpdated = await this.orderModel.findOneAndUpdate(
-      { _id: orderId },
+    // Find all orders in the same group
+    const ordersInGroup = await this.orderModel.find({ orderGroupId: order.orderGroupId });
+    const totalAmount = ordersInGroup.reduce((sum, o) => sum + (o.item?.price || 0), 0);
+    // Create payment document
+    const payment = await this.paymentModel.create({
+      orderGroupId: order.orderGroupId,
+      userId: order.userId,
+      amount: totalAmount,
+      status: PaymentStatus.PAID,
+      orders: ordersInGroup.map((o) => o._id),
+      paymentGatewayId: 'MOCK_PAYMENT_' + Date.now(),
+    });
+    // Link payment to all orders in the group
+    await this.orderModel.updateMany(
+      { orderGroupId: order.orderGroupId },
       {
         $set: {
-          paymentStatus: PaymentStatus.PAID,
-          paymentId: paymentResult.paymentId,
+          paymentId: payment._id,
           paymentDate: new Date(),
           totalAmount: totalAmount,
           'item.isPaid': true,
           'item.status': OrderStatus.PAID,
         },
       },
-      {
-        arrayFilters: [{ 'item.status': OrderStatus.APPROVED }],
-        new: true,
-      },
     );
-
-    if (!orderUpdated) throw new BadRequestException('No order found');
-
-    // Remove rejected and pending items
-    await this.orderModel.updateOne(
-      { _id: orderId },
-      {
-        $pull: {
-          item: {
-            status: { $in: [OrderStatus.REJECTED, OrderStatus.PENDING] },
-          },
-        },
-      },
-    );
-
-    return orderUpdated;
+    // Return the updated order
+    return this.orderModel.findById(orderId);
   }
 
-  async signContract(orderId: string, userId: string, role: 'user' | 'influencer') {
+  async signContract(orderId: string, userId: string, role: UserRole) {
     const order = await this.orderModel.findById(orderId);
     if (!order) throw new NotFoundException('Order not found');
     const item = order.item;
     if (!item) throw new NotFoundException('Order item not found');
 
     // Permission check
-    if (role === 'user' && order.userId.toString() !== userId) {
+    if (role === UserRole.USER && order.userId.toString() !== userId) {
       throw new ForbiddenException('You can only sign your own order contract');
     }
-    if (role === 'influencer' && !item.influencerIds.some((id) => id.toString() === userId)) {
+    if (role === UserRole.INFLUENCER && !item.influencerIds.some((id) => id.toString() === userId)) {
       throw new ForbiddenException('You are not authorized to sign this contract');
     }
 
@@ -258,10 +215,10 @@ export class OrderService {
     if (!item.contractSignatures) {
       item.contractSignatures = {};
     }
-    if (role === 'user') {
+    if (role === UserRole.USER) {
       item.contractSignatures.clientSigned = true;
     }
-    if (role === 'influencer') {
+    if (role === UserRole.INFLUENCER) {
       item.contractSignatures.influencerSigned = true;
     }
     if (item.contractSignatures.clientSigned && item.contractSignatures.influencerSigned) {
@@ -281,10 +238,7 @@ export class OrderService {
     const item = order.item;
     if (!item) throw new NotFoundException('Order item not found');
     // Permission check
-    if (
-      order.userId.toString() !== userId &&
-      !item.influencerIds.some((id) => id.toString() === userId)
-    ) {
+    if (order.userId.toString() !== userId && !item.influencerIds.some((id) => id.toString() === userId)) {
       throw new ForbiddenException('You are not authorized to view this contract status');
     }
     return {

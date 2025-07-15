@@ -22,7 +22,10 @@ export class Contract {
   content: string;
 
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })
-  createdBy: Types.ObjectId | string;
+  createdBy: Types.ObjectId;
+
+  @Prop({ type: Types.ObjectId, ref: 'InfluencerServices', required: true })
+  serviceId: Types.ObjectId;
 }
 
 export const ContractSchema = SchemaFactory.createForClass(Contract);
