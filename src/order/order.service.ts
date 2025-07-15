@@ -17,7 +17,7 @@ export class OrderService {
     private readonly availabilityService: AvailabilityService,
   ) {}
 
-  async createOrder(userId: string): Promise<Order> {
+  async createOrder(userId: string): Promise<Order[]> {
     // Get user's cart
     const cart = await this.cartService.getCart(userId);
 
@@ -31,57 +31,57 @@ export class OrderService {
       throw new BadRequestException('Cannot create order with disabled items');
     }
 
-    // Validate services and get latest user IDs
-    const validatedItems = await Promise.all(
-      cart.items.map(async (item) => {
-        // Get latest service data
-        const service = await this.influencerServiceService.getInfluencerServiceByServiceId(item.serviceId.toString());
-        if (!service) {
-          throw new BadRequestException(`Service ${item.serviceId} not found`);
-        }
+    // Generate a common orderGroupId for this checkout
+    const orderGroupId = new Types.ObjectId().toHexString();
 
-        // Validate all users exist
-        if (!service.users || service.users.length === 0) {
-          throw new BadRequestException(`No users found for service ${item.serviceId}`);
-        }
+    // For each cart item, create a separate order
+    const createdOrders: Order[] = [];
+    for (const cartItem of cart.items) {
+      // Get latest service data
+      const service = await this.influencerServiceService.getInfluencerServiceByServiceId(cartItem.serviceId.toString());
+      if (!service) {
+        throw new BadRequestException(`Service ${cartItem.serviceId} not found`);
+      }
 
-        // Validate location if required
-        if (service.locationRequired && (!item.location || item.location.trim() === '')) {
-          throw new BadRequestException('Location is required for this service');
-        }
+      // Validate all users exist
+      if (!service.users || service.users.length === 0) {
+        throw new BadRequestException(`No users found for service ${cartItem.serviceId}`);
+      }
 
-        // Validate deliveryDate is at least minimumDaysForCompletion from today
-        const today = new Date();
-        today.setHours(0,0,0,0);
-        const minDate = new Date(today);
-        minDate.setDate(today.getDate() + (service.minimumDaysForCompletion || 1));
-        if (!item.deliveryDate || item.deliveryDate < minDate) {
-          throw new BadRequestException(`Delivery date must be at least ${service.minimumDaysForCompletion || 1} days from today.`);
-        }
+      // Validate location if required
+      if (service.locationRequired && (!cartItem.location || cartItem.location.trim() === '')) {
+        throw new BadRequestException('Location is required for this service');
+      }
 
-        return {
-          serviceId: item.serviceId,
-          influencerIds: service.users.map(id => new Types.ObjectId(id)),
-          deliveryDate: item.deliveryDate,
-          location: item.location,
-          price: item.price,
-        };
-      })
-    );
+      // Validate deliveryDate is at least minimumDaysForCompletion from today
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const minDate = new Date(today);
+      minDate.setDate(today.getDate() + (service.minimumDaysForCompletion || 1));
+      if (!cartItem.deliveryDate || cartItem.deliveryDate < minDate) {
+        throw new BadRequestException(`Delivery date must be at least ${service.minimumDaysForCompletion || 1} days from today.`);
+      }
 
-    // Create order
-    const order = await this.orderModel.create({
-      userId: new Types.ObjectId(userId),
-      items: validatedItems,
-      totalAmount: cart.items.reduce((sum, item) => sum + item.price, 0),
-      status: OrderStatus.PENDING,
-      paymentStatus: PaymentStatus.PENDING,
-    });
+      // Create order for this service
+      const order = await this.orderModel.create({
+        userId: new Types.ObjectId(userId),
+        orderGroupId,
+        item: {
+          serviceId: cartItem.serviceId,
+          influencerIds: service.users.map((id) => new Types.ObjectId(id)),
+          deliveryDate: cartItem.deliveryDate,
+          location: cartItem.location,
+          price: cartItem.price,
+        },
+        totalAmount: cartItem.price,
+      });
+      createdOrders.push(order);
+    }
 
     // Clear the entire cart after order creation
     await this.cartService.clearCart(userId);
 
-    return order;
+    return createdOrders;
   }
 
   async getOrder(userId: string, orderId: string): Promise<Order> {
@@ -103,7 +103,7 @@ export class OrderService {
 
   async getInfluencerOrders(influencerId: string): Promise<Order[]> {
     return this.orderModel.find({
-      'items.influencerIds': new Types.ObjectId(influencerId),
+      'item.influencerIds': new Types.ObjectId(influencerId),
     });
   }
 
@@ -119,7 +119,7 @@ export class OrderService {
       throw new NotFoundException('Order not found');
     }
 
-    const item = order.items.find(item => item._id.toString() === itemId);
+    const item = order.item;
     if (!item) {
       throw new NotFoundException('Order item not found');
     }
@@ -127,10 +127,8 @@ export class OrderService {
     // Validate user permissions
     if (userRole === UserRole.INFLUENCER) {
       // Check if the influencer is involved in this order item
-      const isInvolvedInfluencer = item.influencerIds.some(
-        id => id.toString() === userId
-      );
-      
+      const isInvolvedInfluencer = item.influencerIds.some((id) => id.toString() === userId);
+
       if (!isInvolvedInfluencer) {
         throw new ForbiddenException('You are not authorized to update this order item');
       }
@@ -151,23 +149,23 @@ export class OrderService {
 
     // Update item status
     const update: any = {
-      'items.$[item].status': updateOrderStatusDto.status,
+      'item.status': updateOrderStatusDto.status,
     };
 
     if (updateOrderStatusDto.status === OrderStatus.REJECTED) {
-      update['items.$[item].rejectedBy'] = new Types.ObjectId(userId);
-      update['items.$[item].rejectionReason'] = updateOrderStatusDto.rejectionReason;
+      update['item.rejectedBy'] = new Types.ObjectId(userId);
+      update['item.rejectionReason'] = updateOrderStatusDto.rejectionReason;
     } else if (updateOrderStatusDto.status === OrderStatus.APPROVED) {
-      update['items.$[item].approvedBy'] = new Types.ObjectId(userId);
+      update['item.approvedBy'] = new Types.ObjectId(userId);
     }
 
     const orderUpdated = await this.orderModel.findOneAndUpdate(
       { _id: orderId },
       { $set: update },
-      { 
+      {
         arrayFilters: [{ 'item._id': new Types.ObjectId(itemId) }],
-        new: true 
-      }
+        new: true,
+      },
     );
 
     if (!orderUpdated) throw new BadRequestException('No order found');
@@ -178,13 +176,22 @@ export class OrderService {
     const order = await this.getOrder(userId, orderId);
 
     // Get approved items
-    const approvedItems = order.items.filter(item => item.status === OrderStatus.APPROVED);
-    if (approvedItems.length === 0) {
+    const approvedItems = order.item;
+    if (!approvedItems) {
       throw new BadRequestException('No approved items to process payment');
     }
 
+    // Enforce contract signatures and date verification
+    if (!approvedItems.contractSignatures || !approvedItems.contractSignatures.clientSigned || !approvedItems.contractSignatures.influencerSigned) {
+      throw new BadRequestException('Both client and influencer must sign the contract before payment.');
+    }
+    // Optionally, verify deliveryDate is still valid (not in the past)
+    if (!approvedItems.deliveryDate || approvedItems.deliveryDate < new Date()) {
+      throw new BadRequestException('Delivery date is invalid or in the past.');
+    }
+
     // Calculate total for approved items
-    const totalAmount = approvedItems.reduce((sum, item) => sum + item.price, 0);
+    const totalAmount = approvedItems.price;
 
     // TODO: Integrate with actual payment gateway
     // For now, just simulate successful payment
@@ -206,14 +213,14 @@ export class OrderService {
           paymentId: paymentResult.paymentId,
           paymentDate: new Date(),
           totalAmount: totalAmount,
-          'items.$[item].isPaid': true,
-          'items.$[item].status': OrderStatus.PAID
-        }
+          'item.isPaid': true,
+          'item.status': OrderStatus.PAID,
+        },
       },
       {
         arrayFilters: [{ 'item.status': OrderStatus.APPROVED }],
-        new: true
-      }
+        new: true,
+      },
     );
 
     if (!orderUpdated) throw new BadRequestException('No order found');
@@ -223,14 +230,68 @@ export class OrderService {
       { _id: orderId },
       {
         $pull: {
-          items: {
-            status: { $in: [OrderStatus.REJECTED, OrderStatus.PENDING] }
-          }
-        }
-      }
+          item: {
+            status: { $in: [OrderStatus.REJECTED, OrderStatus.PENDING] },
+          },
+        },
+      },
     );
 
     return orderUpdated;
+  }
+
+  async signContract(orderId: string, userId: string, role: 'user' | 'influencer') {
+    const order = await this.orderModel.findById(orderId);
+    if (!order) throw new NotFoundException('Order not found');
+    const item = order.item;
+    if (!item) throw new NotFoundException('Order item not found');
+
+    // Permission check
+    if (role === 'user' && order.userId.toString() !== userId) {
+      throw new ForbiddenException('You can only sign your own order contract');
+    }
+    if (role === 'influencer' && !item.influencerIds.some((id) => id.toString() === userId)) {
+      throw new ForbiddenException('You are not authorized to sign this contract');
+    }
+
+    // Update contract signatures
+    if (!item.contractSignatures) {
+      item.contractSignatures = {};
+    }
+    if (role === 'user') {
+      item.contractSignatures.clientSigned = true;
+    }
+    if (role === 'influencer') {
+      item.contractSignatures.influencerSigned = true;
+    }
+    if (item.contractSignatures.clientSigned && item.contractSignatures.influencerSigned) {
+      item.contractSignatures.signedAt = new Date();
+    }
+    await order.save();
+    return {
+      clientSigned: item.contractSignatures.clientSigned || false,
+      influencerSigned: item.contractSignatures.influencerSigned || false,
+      signedAt: item.contractSignatures.signedAt,
+    };
+  }
+
+  async getContractStatus(orderId: string, userId: string) {
+    const order = await this.orderModel.findById(orderId);
+    if (!order) throw new NotFoundException('Order not found');
+    const item = order.item;
+    if (!item) throw new NotFoundException('Order item not found');
+    // Permission check
+    if (
+      order.userId.toString() !== userId &&
+      !item.influencerIds.some((id) => id.toString() === userId)
+    ) {
+      throw new ForbiddenException('You are not authorized to view this contract status');
+    }
+    return {
+      clientSigned: item.contractSignatures?.clientSigned || false,
+      influencerSigned: item.contractSignatures?.influencerSigned || false,
+      signedAt: item.contractSignatures?.signedAt,
+    };
   }
 
   private validateStatusTransition(currentStatus: OrderStatus, newStatus: OrderStatus, userRole: UserRole): void {

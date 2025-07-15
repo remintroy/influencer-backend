@@ -28,6 +28,26 @@ export class OrderItem {
   @Prop({ type: [{ type: Types.ObjectId, ref: 'User' }], required: true })
   influencerIds: Types.ObjectId[];
 
+  @Prop({ type: Types.ObjectId, ref: 'Contract', required: false })
+  contractId?: Types.ObjectId;
+
+  @Prop({
+    type: {
+      contractId: { type: Types.ObjectId, ref: 'Contract', required: false },
+      clientSigned: { type: Boolean, default: false },
+      influencerSigned: { type: Boolean, default: false },
+      signedAt: { type: Date },
+    },
+    required: false,
+    default: undefined,
+  })
+  contractSignatures?: {
+    contractId?: Types.ObjectId;
+    clientSigned?: boolean;
+    influencerSigned?: boolean;
+    signedAt?: Date;
+  };
+
   @Prop({ type: Date, required: true })
   deliveryDate: Date;
 
@@ -58,17 +78,14 @@ export class Order extends Document {
   @Prop({ type: Types.ObjectId, required: true, ref: 'User' })
   userId: Types.ObjectId;
 
-  @Prop({ type: [OrderItem], required: true })
-  items: OrderItem[];
+  @Prop({ type: String, required: true })
+  orderGroupId: string;
+
+  @Prop({ type: OrderItem, required: true })
+  item: OrderItem;
 
   @Prop({ required: true, min: 0 })
   totalAmount: number;
-
-  @Prop({ type: String, enum: PaymentStatus, default: PaymentStatus.PENDING })
-  paymentStatus: PaymentStatus;
-
-  @Prop()
-  paymentId?: string;
 
   @Prop()
   paymentDate?: Date;

@@ -1,4 +1,4 @@
-import { IsNumber, IsOptional, IsString, IsUrl, Min, IsBoolean } from 'class-validator';
+import { IsNumber, IsOptional, IsString, IsUrl, Min, IsBoolean, IsArray } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateInfluencerServiceDto {
@@ -68,4 +68,12 @@ export class CreateInfluencerServiceDto {
   @IsNumber()
   @Min(1)
   minimumDaysForCompletion: number;
+
+  @ApiPropertyOptional({
+    description: 'Contract ID for the service',
+    type: String,
+  })
+  @IsOptional()
+  @IsString()
+  contract?: string;
 }

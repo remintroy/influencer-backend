@@ -12,6 +12,22 @@ export enum ServiceType {
 }
 
 @Schema({ timestamps: true })
+export class Contract {
+  _id?: Types.ObjectId | string;
+
+  @Prop({ required: true })
+  title: string;
+
+  @Prop({ required: true })
+  content: string;
+
+  @Prop({ type: Types.ObjectId, ref: 'User', required: true })
+  createdBy: Types.ObjectId | string;
+}
+
+export const ContractSchema = SchemaFactory.createForClass(Contract);
+
+@Schema({ timestamps: true })
 export class InfluencerServices {
   _id?: Types.ObjectId | string;
 
@@ -55,6 +71,9 @@ export class InfluencerServices {
     images?: string[];
     description?: string;
   };
+
+  @Prop({ type: Types.ObjectId, ref: 'Contract' })
+  contract?: Types.ObjectId | string;
 }
 
 export const InfluencerServicesSchema = SchemaFactory.createForClass(InfluencerServices);

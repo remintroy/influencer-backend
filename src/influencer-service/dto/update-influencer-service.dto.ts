@@ -97,4 +97,12 @@ export class UpdateInfluencerServiceDto {
     @IsNumber()
     @Min(1)
     minimumDaysForCompletion?: number;
+
+    @ApiPropertyOptional({
+        description: 'Contract ID for the service',
+        type: String,
+    })
+    @IsOptional()
+    @IsString()
+    contract?: string;
 }
