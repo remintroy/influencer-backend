@@ -19,7 +19,7 @@ export class FlashDealService {
   // admin only
   async createFlashDeal(createdBy: string, data: CreateFlashDealDto) {
     // Validate service exists
-    const service = await this.influencerServiceService.getInfluencerServiceByServiceId(data.serviceId);
+    const service = await this.influencerServiceService.getInfluencerServiceByServiceId(data.serviceId, { currentUserId: (data as any).userId ?? undefined });
 
     if (!service) {
       throw new NotFoundException('Service not found');
@@ -225,7 +225,7 @@ export class FlashDealService {
 
     // Validate service exists if serviceId is provided
     if (data.serviceId) {
-      const service = await this.influencerServiceService.getInfluencerServiceByServiceId(data.serviceId);
+      const service = await this.influencerServiceService.getInfluencerServiceByServiceId(data.serviceId, { currentUserId: (data as any).userId ?? undefined });
       if (!service) {
         throw new NotFoundException('Service not found');
       }

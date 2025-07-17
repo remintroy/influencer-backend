@@ -76,4 +76,13 @@ export class CreateInfluencerServiceDto {
   @IsOptional()
   @IsString()
   contract?: string;
+
+  @ApiPropertyOptional({
+    description: 'Status of the service',
+    enum: ['pending', 'approved'],
+    default: 'pending',
+  })
+  @IsOptional()
+  @IsString()
+  status?: 'pending' | 'approved';
 }

@@ -27,7 +27,19 @@ export class InfluencerServiceController {
   @Roles(UserRole.INFLUENCER)
   async createInfluencerService(@Req() req: Request, @Body() data: CreateInfluencerServiceDto) {
     const createdUserId = req?.user?.userId as string;
-    return this.influencerServiceService.createInfluencerService(createdUserId, { ...data, type: ServiceType.INDIVIDUAL });
+    return this.influencerServiceService.createInfluencerService(createdUserId, { ...data, type: ServiceType.INDIVIDUAL, status: 'pending' });
+  }
+
+  // Admin endpoint to approve a service and create contract
+  @Post('/admin/:serviceId/approve')
+  @ApiOperation({ summary: 'Admin: Approve influencer service and create contract' })
+  @Roles(UserRole.ADMIN)
+  async approveInfluencerServiceAndCreateContract(
+    @Req() req: Request,
+    @Param('serviceId') serviceId: string,
+    @Body() contractData: any
+  ) {
+    return this.influencerServiceService.approveInfluencerServiceAndCreateContract(req.user?.userId!, serviceId, contractData);
   }
 
   @Get('/influencer/:influencerId')
@@ -42,8 +54,13 @@ export class InfluencerServiceController {
     @Param('influencerId') influencerId: string,
     @Query('page') page: number,
     @Query('limit') limit: number,
+    @Req() req: Request
   ) {
-    return await this.influencerServiceService.getInfluencerServicesByInfluencerId(influencerId, { page, limit });
+    return await this.influencerServiceService.getInfluencerServicesByInfluencerId(
+      influencerId,
+      { page, limit },
+      { currentUserId: req?.user?.userId, currentUserRole: req?.user?.role }
+    );
   }
 
   @Get('/collaborations')
@@ -53,8 +70,11 @@ export class InfluencerServiceController {
   })
   @ApiQuery({ name: 'page', required: false, description: 'Page number for pagination' })
   @ApiQuery({ name: 'limit', required: false, description: 'Number of items per page' })
-  async getCollaborationServices(@Query('page') page: number, @Query('limit') limit: number) {
-    return await this.influencerServiceService.getCollaborationServices({ page, limit });
+  async getCollaborationServices(@Query('page') page: number, @Query('limit') limit: number, @Req() req: Request) {
+    return await this.influencerServiceService.getCollaborationServices(
+      { page, limit },
+      { currentUserId: req?.user?.userId, currentUserRole: req?.user?.role }
+    );
   }
 
   @Post('/collaboration')
@@ -65,7 +85,7 @@ export class InfluencerServiceController {
   @ApiBody({ type: CreateCollaborationServiceDto })
   @Roles(UserRole.ADMIN)
   async createCollaborationService(@Req() req: Request, @Body() createCollaborationDto: CreateCollaborationServiceDto) {
-    return await this.influencerServiceService.createCollaborationService(req.user?.userId!, createCollaborationDto);
+    return await this.influencerServiceService.createCollaborationService(req.user?.userId!, { ...createCollaborationDto, status: 'pending' });
   }
 
   /**
@@ -151,7 +171,10 @@ export class InfluencerServiceController {
 
   @ApiOperation({ summary: 'Get a influencer service' })
   @Get('/:serviceId')
-  async getInfluencerService(@Param('serviceId') serviceId: string) {
-    return this.influencerServiceService.getInfluencerServiceByServiceId(serviceId);
+  async getInfluencerService(@Param('serviceId') serviceId: string, @Req() req: Request) {
+    return this.influencerServiceService.getInfluencerServiceByServiceId(serviceId, {
+      currentUserId: req?.user?.userId,
+      currentUserRole: req?.user?.role,
+    });
   }
 }

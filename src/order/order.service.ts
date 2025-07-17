@@ -40,7 +40,7 @@ export class OrderService {
     const createdOrders: Order[] = [];
     for (const cartItem of cart.items) {
       // Get latest service data
-      const service = await this.influencerServiceService.getInfluencerServiceByServiceId(cartItem.serviceId.toString());
+      const service = await this.influencerServiceService.getInfluencerServiceByServiceId(cartItem.serviceId.toString(), { currentUserId: userId });
       if (!service) {
         throw new BadRequestException(`Service ${cartItem.serviceId} not found`);
       }

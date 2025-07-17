@@ -42,20 +42,15 @@ export class InfluencerServiceService {
 
     const serviceId = new Types.ObjectId();
 
-    // Create contract with hardcoded content
-    const contract = await this.contractModel.create({
-      title: 'Default Service Contract',
-      content: 'This is a default contract for the service. Both parties must agree to the terms before proceeding.',
-      createdBy: new Types.ObjectId(createdBy),
-      serviceId: new Types.ObjectId(serviceId),
-    });
+    // Remove contract creation here, set status to pending
     const service = await this.influencerServiceModal.create({
       ...data,
       _id: serviceId,
       createdBy: new Types.ObjectId(createdBy),
-      contract: contract._id,
+      status: 'pending',
+      contract: undefined,
     });
-    return this.influencerServiceModal.findById(service._id).populate('contract');
+    return this.influencerServiceModal.findById(service._id);
   }
 
   async updateInfluencerService(
@@ -99,26 +94,40 @@ export class InfluencerServiceService {
     )?.[0];
   }
 
-  async getInfluencerServiceByServiceId(serviceId: string) {
+  async getInfluencerServiceByServiceId(serviceId: string, options?: { currentUserId?: string; currentUserRole?: UserRole }) {
     if (!isValidObjectId(serviceId)) throw new BadRequestException('Invalid serviceId');
-    return this.influencerServiceModal.findById(serviceId).populate('contract');
+    const service = await this.influencerServiceModal.findById(serviceId).populate('contract');
+    if (!service) return null;
+    // Only return if approved, or if owner or admin
+    if (
+      service.status === 'approved' ||
+      (options?.currentUserId && service.createdBy?.toString() === options.currentUserId) ||
+      options?.currentUserRole === UserRole.ADMIN
+    ) {
+      return service;
+    }
+    throw new ForbiddenException('You do not have access to this service');
   }
 
   async getInfluencerServicesByInfluencerId(
     influencerId: string,
     params?: { page?: number; limit?: number },
+    options?: { currentUserId?: string; currentUserRole?: UserRole }
   ): Promise<PaginationResponse<InfluencerServices>> {
     if (!isValidObjectId(influencerId)) throw new BadRequestException('Invalid influencerId');
-
     const page = Math.max(1, Number(params?.page || 1));
     const limit = Math.max(1, Number(params?.limit || 10));
-
+    // Only show approved, unless owner or admin
+    let filter: any = { users: new Types.ObjectId(influencerId), type: ServiceType.INDIVIDUAL, status: 'approved' };
+    if (options?.currentUserId === influencerId || options?.currentUserRole === UserRole.ADMIN) {
+      delete filter.status;
+    }
     const docs = await this.influencerServiceModal
-      .find({ users: new Types.ObjectId(influencerId), type: ServiceType.INDIVIDUAL })
+      .find(filter)
       .skip((page - 1) * limit)
       .limit(limit)
       .populate('contract');
-    const totalDocs = await this.influencerServiceModal.countDocuments({ users: new Types.ObjectId(influencerId), type: ServiceType.INDIVIDUAL });
+    const totalDocs = await this.influencerServiceModal.countDocuments(filter);
     return {
       totalDocs,
       page,
@@ -127,16 +136,20 @@ export class InfluencerServiceService {
     };
   }
 
-  async getCollaborationServices(params?: { page?: number; limit?: number }): Promise<PaginationResponse<InfluencerServices>> {
+  async getCollaborationServices(params?: { page?: number; limit?: number }, options?: { currentUserId?: string; currentUserRole?: UserRole }): Promise<PaginationResponse<InfluencerServices>> {
     const page = Math.max(1, Number(params?.page || 1));
     const limit = Math.max(1, Number(params?.limit || 10));
-
+    // Only show approved unless admin
+    let filter: any = { type: ServiceType.COLLABORATION, status: 'approved' };
+    if (options?.currentUserRole === UserRole.ADMIN) {
+      delete filter.status;
+    }
     const docs = await this.influencerServiceModal
-      .find({ type: ServiceType.COLLABORATION })
+      .find(filter)
       .skip((page - 1) * limit)
       .limit(limit)
       .populate('contract');
-    const totalDocs = await this.influencerServiceModal.countDocuments({ type: ServiceType.COLLABORATION });
+    const totalDocs = await this.influencerServiceModal.countDocuments(filter);
     return {
       totalDocs,
       page,
@@ -386,5 +399,29 @@ export class InfluencerServiceService {
     const deleted = await this.influencerServiceModal.deleteOne({ _id: new Types.ObjectId(serviceId) });
 
     return { message: 'Influencer service deleted successfully', deleted: deleted.deletedCount > 0 };
+  }
+
+  // Add a method for admin to approve a service and create contract
+  async approveInfluencerServiceAndCreateContract(adminId: string, serviceId: string, contractData: Partial<Contract>) {
+    // Check admin
+    const adminUser = await this.userService.getAdminById(adminId);
+    if (!adminUser || adminUser.role !== UserRole.ADMIN) {
+      throw new ForbiddenException({ message: 'Only admin can approve services', error: 'Access Denied' });
+    }
+    // Find service
+    const service = await this.influencerServiceModal.findById(serviceId);
+    if (!service) throw new NotFoundException('Service not found');
+    if (service.status === 'approved') throw new BadRequestException('Service already approved');
+    // Create contract
+    const contract = await this.contractModel.create({
+      ...contractData,
+      createdBy: new Types.ObjectId(adminId),
+      serviceId: new Types.ObjectId(serviceId),
+    });
+    // Update service
+    service.status = 'approved';
+    service.contract = contract._id;
+    await service.save();
+    return this.influencerServiceModal.findById(serviceId).populate('contract');
   }
 }

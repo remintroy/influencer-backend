@@ -83,6 +83,9 @@ export class InfluencerServices {
 
   @Prop({ type: Types.ObjectId, ref: 'Contract' })
   contract?: Types.ObjectId | string;
+
+  @Prop({ required: true, enum: ['pending', 'approved'], default: 'pending' })
+  status: 'pending' | 'approved';
 }
 
 export const InfluencerServicesSchema = SchemaFactory.createForClass(InfluencerServices);

@@ -34,7 +34,7 @@ export class CartService {
     const cart = await this.getOrCreateCart(userId);
 
     // Get service and validate
-    const service = await this.influencerServiceService.getInfluencerServiceByServiceId(addToCartDto.serviceId);
+    const service = await this.influencerServiceService.getInfluencerServiceByServiceId(addToCartDto.serviceId, { currentUserId: userId });
     if (!service) {
       throw new NotFoundException('Service not found');
     }
@@ -123,7 +123,7 @@ export class CartService {
     }
 
     // Get latest service data
-    const service = await this.influencerServiceService.getInfluencerServiceByServiceId(item.serviceId.toString());
+    const service = await this.influencerServiceService.getInfluencerServiceByServiceId(item.serviceId.toString(), { currentUserId: userId });
     if (!service) {
       throw new NotFoundException('Service not found');
     }
