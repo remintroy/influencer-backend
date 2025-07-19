@@ -144,8 +144,8 @@ export class OrderService {
 
     // Add clientStatus to response
     const userRole = order.userId.toString() === userId ? UserRole.USER : UserRole.INFLUENCER;
-    const clientStatus = this.mapOrderStatusForUser(order, userId, userRole);
-    return { ...order.toObject(), clientStatus };
+    const orderStatus = this.mapOrderStatusForUser(order, userId, userRole);
+    return { ...order.toObject(), orderStatus };
   }
 
   async getUserOrders(userId: string): Promise<any[]> {
@@ -154,8 +154,8 @@ export class OrderService {
       .populate({ path: 'item.serviceId', populate: { path: 'contract' } });
     return orders.map((order) => {
       const userRole = order.userId.toString() === userId ? UserRole.USER : UserRole.INFLUENCER;
-      const clientStatus = this.mapOrderStatusForUser(order, userId, userRole);
-      return { ...order.toObject(), clientStatus };
+      const orderStatus = this.mapOrderStatusForUser(order, userId, userRole);
+      return { ...order.toObject(), orderStatus };
     });
   }
 
@@ -226,7 +226,7 @@ export class OrderService {
       orderGroupId: order.orderGroupId,
       userId: order.userId,
       amount: totalAmount,
-      status: PaymentStatus.PAID,
+      orderStatus: PaymentStatus.PAID,
       orders: ordersInGroup.map((o) => o._id),
       paymentGatewayId: 'MOCK_PAYMENT_' + Date.now(),
     });
@@ -275,12 +275,17 @@ export class OrderService {
     }
     if (item.contractSignatures.clientSigned && item.contractSignatures.influencerSigned) {
       item.contractSignatures.signedAt = new Date();
+      item.status = OrderStatus.APPROVED;
     }
+
+    // TODO: GENERATE SAND SAVE PDF OF SING
+
     await order.save();
     return {
       clientSigned: item.contractSignatures.clientSigned || false,
       influencerSigned: item.contractSignatures.influencerSigned || false,
       signedAt: item.contractSignatures.signedAt,
+      orderStatus: this.mapOrderStatusForUser(order, userId, role),
       clientSignatureImage: item.contractSignatures.clientSignatureImage,
       influencerSignatureImage: item.contractSignatures.influencerSignatureImage,
     };
