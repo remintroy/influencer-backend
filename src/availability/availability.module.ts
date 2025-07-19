@@ -7,12 +7,8 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { User, UserSchema } from 'src/user/schemas/user.schema';
 import { Availability, AvailabilitySchema } from './schemas/availability.schema';
 import { InfluencerServiceService } from 'src/influencer-service/influencer-service.service';
-import {
-  Contract,
-  ContractSchema,
-  InfluencerServices,
-  InfluencerServicesSchema,
-} from 'src/influencer-service/schemas/influencer-service.schema';
+import { InfluencerServices, InfluencerServicesSchema } from 'src/influencer-service/schemas/influencer-service.schema';
+import { Contract, ContractSchema } from 'src/influencer-service/schemas/contract-schema';
 
 @Module({
   imports: [

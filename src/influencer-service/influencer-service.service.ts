@@ -1,16 +1,11 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { UserRole } from 'src/user/schemas/user.schema';
-import {
-  InfluencerServiceDocument,
-  InfluencerServicePaginationResponse,
-  InfluencerServices,
-  ServiceType,
-  Contract,
-} from './schemas/influencer-service.schema';
+import { User, UserRole } from 'src/user/schemas/user.schema';
+import { InfluencerServiceDocument, InfluencerServices, ServiceStatus, ServiceType } from './schemas/influencer-service.schema';
 import { isValidObjectId, Model, Types } from 'mongoose';
 import { UserService } from 'src/user/user.service';
 import { PaginationResponse } from 'src/@types/pagination-response.interface';
+import { Contract } from './schemas/contract-schema';
 
 @Injectable()
 export class InfluencerServiceService {
@@ -20,39 +15,82 @@ export class InfluencerServiceService {
     private readonly userService: UserService,
   ) {}
 
-  async createInfluencerService(createdBy: string, data: InfluencerServices) {
-    const dataFromDb = await this.userService.getInfluencerById(createdBy);
-
-    if (!dataFromDb) throw new NotFoundException('User not found');
-    if (dataFromDb?.role != UserRole.INFLUENCER) {
+  // DTO validation requierd
+  async createInfluencerService(currentUser: Partial<User>, data: Partial<InfluencerServices>) {
+    if (!currentUser) throw new NotFoundException('User not found');
+    if (!currentUser?.role || ![UserRole.INFLUENCER, UserRole.ADMIN].includes(currentUser?.role)) {
       throw new ForbiddenException({ message: 'Only influencer can create service', error: 'Access Denied' });
     }
 
-    // Convert user IDs to ObjectIds
-    if (data.users) {
-      data.users = data.users.map((id) => new Types.ObjectId(id));
+    if (!data.type) throw new BadRequestException('Service type is required');
+    if (!Object.values(ServiceType).includes(data.type as ServiceType)) throw new BadRequestException('Invalid service type');
+
+    if (data.type == ServiceType.COLLABORATION && !data.collaborationDetails) {
+      throw new BadRequestException('Collaboraion Details is required');
     }
 
-    // Add creator to users array if not present
-    if (!data.users) {
-      data.users = [new Types.ObjectId(createdBy)];
-    } else if (!data.users.some((id) => id.toString() === createdBy)) {
-      data.users.push(new Types.ObjectId(createdBy));
+    // Setting default approved status for type of service
+    data.status = data.type === ServiceType.INDIVIDUAL ? ServiceStatus.APPROVED : ServiceStatus.PENDING;
+
+    // Special Default for admin
+    data.status = currentUser?.role == UserRole.ADMIN ? ServiceStatus.APPROVED : data.status;
+
+    if (!data.users) data.users = currentUser?.role == UserRole.ADMIN ? [] : [new Types.ObjectId(currentUser?._id)];
+
+    // Validate and transform
+    let didFindCurrentUser = false;
+
+    // Convert every items to string
+    data?.users?.map((e: any) => e + '');
+
+    // Removing duplicate ids
+    data.users = [...new Set(data.users as string[])];
+
+    for (const index in data?.users) {
+      const userId = data?.users[index];
+
+      if (!isValidObjectId(userId)) throw new BadRequestException(`Invaid userId provided`);
+
+      if (userId == currentUser?._id + '') didFindCurrentUser = true;
+      else {
+        const userDataFromDb = await this.userService.getInfluencerById(userId + '');
+        if (!userDataFromDb || userDataFromDb?.role != UserRole.INFLUENCER) {
+          throw new BadRequestException('Invaid influencers selected');
+        }
+      }
+    }
+
+    if (currentUser?.role == UserRole.ADMIN && data?.users?.includes(currentUser?._id + '')) {
+      throw new BadRequestException('Admin user cannot be a part of a collaboration');
+    }
+
+    // Convert back every user IDs to ObjectIds
+    if (data.users) data.users = data.users.map((id: any) => new Types.ObjectId(id + ''));
+
+    if (!didFindCurrentUser && currentUser?.role != UserRole.ADMIN) data.users.push(new Types.ObjectId(currentUser?._id));
+
+    if (data.users?.length <= 1 && data.type == ServiceType.COLLABORATION) {
+      throw new BadRequestException('Atleast add one partner for collaboration');
     }
 
     const serviceId = new Types.ObjectId();
 
-    // Remove contract creation here, set status to pending
+    // TODO: Make sure this is updated or add might make a hardcorded id
+    const contractData = await this.contractModel.findOne();
+
     const service = await this.influencerServiceModal.create({
       ...data,
       _id: serviceId,
-      createdBy: new Types.ObjectId(createdBy),
-      status: 'pending',
-      contract: undefined,
+      serviceAdminId: currentUser?.role == UserRole.ADMIN ? data?.users?.[0] : new Types.ObjectId(currentUser?._id),
+      createdBy: new Types.ObjectId(currentUser?._id),
+      contract: contractData?._id,
     });
-    return this.influencerServiceModal.findById(service._id);
+
+    // ...
+    return service?.toJSON();
   }
 
+  // TODO: Add users list validation on update
   async updateInfluencerService(
     serviceId: string,
     data: Partial<InfluencerServices>,
@@ -62,6 +100,11 @@ export class InfluencerServiceService {
     const serviceData = await this.influencerServiceModal.findById(serviceId);
 
     if (!serviceData) throw new BadRequestException('Service not found');
+
+    // Prevent updating un intented fields
+    delete data._id;
+    delete data.status;
+    delete data.type;
 
     // Check if user has permission to update
     if (
@@ -97,28 +140,29 @@ export class InfluencerServiceService {
   async getInfluencerServiceByServiceId(serviceId: string, options?: { currentUserId?: string; currentUserRole?: UserRole }) {
     if (!isValidObjectId(serviceId)) throw new BadRequestException('Invalid serviceId');
     const service = await this.influencerServiceModal.findById(serviceId).populate('contract');
-    if (!service) return null;
+    if (!service) throw new BadRequestException('Service not found');
     // Only return if approved, or if owner or admin
     if (
-      service.status === 'approved' ||
+      service.status === ServiceStatus.APPROVED ||
       (options?.currentUserId && service.createdBy?.toString() === options.currentUserId) ||
       options?.currentUserRole === UserRole.ADMIN
     ) {
       return service;
     }
+
     throw new ForbiddenException('You do not have access to this service');
   }
 
   async getInfluencerServicesByInfluencerId(
     influencerId: string,
     params?: { page?: number; limit?: number },
-    options?: { currentUserId?: string; currentUserRole?: UserRole }
+    options?: { currentUserId?: string; currentUserRole?: UserRole },
   ): Promise<PaginationResponse<InfluencerServices>> {
     if (!isValidObjectId(influencerId)) throw new BadRequestException('Invalid influencerId');
     const page = Math.max(1, Number(params?.page || 1));
     const limit = Math.max(1, Number(params?.limit || 10));
     // Only show approved, unless owner or admin
-    let filter: any = { users: new Types.ObjectId(influencerId), type: ServiceType.INDIVIDUAL, status: 'approved' };
+    let filter: any = { users: new Types.ObjectId(influencerId), status: 'approved' };
     if (options?.currentUserId === influencerId || options?.currentUserRole === UserRole.ADMIN) {
       delete filter.status;
     }
@@ -136,11 +180,14 @@ export class InfluencerServiceService {
     };
   }
 
-  async getCollaborationServices(params?: { page?: number; limit?: number }, options?: { currentUserId?: string; currentUserRole?: UserRole }): Promise<PaginationResponse<InfluencerServices>> {
+  async getCollaborationServices(
+    params?: { page?: number; limit?: number },
+    options?: { currentUserId?: string; currentUserRole?: UserRole },
+  ): Promise<PaginationResponse<InfluencerServices>> {
     const page = Math.max(1, Number(params?.page || 1));
     const limit = Math.max(1, Number(params?.limit || 10));
     // Only show approved unless admin
-    let filter: any = { type: ServiceType.COLLABORATION, status: 'approved' };
+    let filter: any = { type: ServiceType.COLLABORATION, status: ServiceStatus.APPROVED };
     if (options?.currentUserRole === UserRole.ADMIN) {
       delete filter.status;
     }
@@ -156,228 +203,6 @@ export class InfluencerServiceService {
       limit,
       docs,
     };
-  }
-
-  /**
-   * Admin method to create a collaboration service
-   * Only admins can create collaboration services and assign multiple users
-   */
-  async createCollaborationService(adminUserId: string, data: InfluencerServices) {
-    // Verify admin user
-    const adminUser = await this.userService.getAdminById(adminUserId);
-    if (!adminUser) throw new NotFoundException('Admin user not found');
-    if (adminUser.role !== UserRole.ADMIN) {
-      throw new ForbiddenException({ message: 'Only admin can create collaboration services', error: 'Access Denied' });
-    }
-
-    // Validate all user IDs
-    if (!data.users || data.users.length === 0) {
-      throw new BadRequestException('At least one user must be assigned to the collaboration service');
-    }
-
-    // Verify all users exist and are influencers
-    await Promise.all(
-      data.users.map(async (userId) => {
-        if (!isValidObjectId(userId)) throw new BadRequestException(`Invalid user ID: ${userId}`);
-        const user = await this.userService.getInfluencerById(userId);
-        if (!user) throw new NotFoundException(`User not found: ${userId}`);
-        if (user.role !== UserRole.INFLUENCER) {
-          throw new BadRequestException(`User ${userId} is not an influencer`);
-        }
-        return user;
-      }),
-    );
-
-    // Convert user IDs to ObjectIds
-    const userObjectIds = data.users.map((id: any) => new Types.ObjectId(id));
-
-    // Create contract with hardcoded content
-    const contract = await this.contractModel.create({
-      title: 'Default Collaboration Service Contract',
-      content: 'This is a default contract for the collaboration service. All parties must agree to the terms before proceeding.',
-      createdBy: adminUserId,
-    });
-    const serviceData = {
-      ...data,
-      type: ServiceType.COLLABORATION,
-      users: userObjectIds,
-      createdBy: new Types.ObjectId(adminUserId),
-      contract: contract._id,
-    };
-
-    const service = await this.influencerServiceModal.create(serviceData);
-    return this.influencerServiceModal.findById(service._id).populate('contract');
-  }
-
-  /**
-   * Admin method to convert an existing service to collaboration and add users
-   */
-  async convertToCollaborationService(adminUserId: string, serviceId: string, additionalUserIds: string[]) {
-    // Verify admin user
-    const adminUser = await this.userService.getAdminById(adminUserId);
-    if (!adminUser) throw new NotFoundException('Admin user not found');
-    if (adminUser.role !== UserRole.ADMIN) {
-      throw new ForbiddenException({ message: 'Only admin can convert services to collaboration', error: 'Access Denied' });
-    }
-
-    if (!isValidObjectId(serviceId)) throw new BadRequestException('Invalid serviceId');
-
-    // Get existing service
-    const existingService = await this.influencerServiceModal.findById(serviceId);
-    if (!existingService) throw new NotFoundException('Service not found');
-
-    // Validate additional user IDs
-    if (additionalUserIds && additionalUserIds.length > 0) {
-      await Promise.all(
-        additionalUserIds.map(async (userId) => {
-          if (!isValidObjectId(userId)) throw new BadRequestException(`Invalid user ID: ${userId}`);
-          const user = await this.userService.getInfluencerById(userId);
-          if (!user) throw new NotFoundException(`User not found: ${userId}`);
-          if (user.role !== UserRole.INFLUENCER) {
-            throw new BadRequestException(`User ${userId} is not an influencer`);
-          }
-        }),
-      );
-    }
-
-    // Combine existing users with additional users (avoid duplicates)
-    const existingUserIds = existingService.users?.map((id) => id.toString()) || [];
-    const newUserIds = additionalUserIds.filter((id) => !existingUserIds.includes(id));
-    const allUserIds = [...existingUserIds, ...newUserIds];
-
-    // Convert to ObjectIds
-    const userObjectIds = allUserIds.map((id) => new Types.ObjectId(id));
-
-    // Update service to collaboration type with all users
-    const responseFromDb = await this.influencerServiceModal.findOneAndUpdate(
-      { _id: new Types.ObjectId(serviceId) },
-      {
-        $set: {
-          type: ServiceType.COLLABORATION,
-          users: userObjectIds,
-        },
-      },
-      { new: true },
-    );
-
-    if (!responseFromDb) throw new BadRequestException('Noting to update');
-
-    return responseFromDb;
-  }
-
-  /**
-   * Admin method to add users to an existing collaboration service
-   */
-  async addUsersToCollaborationService(adminUserId: string, serviceId: string, userIds: string[]) {
-    // Verify admin user
-    const adminUser = await this.userService.getAdminById(adminUserId);
-    if (!adminUser) throw new NotFoundException('Admin user not found');
-    if (adminUser.role !== UserRole.ADMIN) {
-      throw new ForbiddenException({ message: 'Only admin can add users to collaboration services', error: 'Access Denied' });
-    }
-
-    if (!isValidObjectId(serviceId)) throw new BadRequestException('Invalid serviceId');
-
-    // Get existing service
-    const existingService = await this.influencerServiceModal.findById(serviceId);
-    if (!existingService) throw new NotFoundException('Service not found');
-
-    if (existingService.type !== ServiceType.COLLABORATION) {
-      throw new BadRequestException('Can only add users to collaboration services');
-    }
-
-    // Validate user IDs
-    if (!userIds || userIds.length === 0) {
-      throw new BadRequestException('At least one user ID must be provided');
-    }
-
-    await Promise.all(
-      userIds.map(async (userId) => {
-        if (!isValidObjectId(userId)) throw new BadRequestException(`Invalid user ID: ${userId}`);
-        const user = await this.userService.getInfluencerById(userId);
-        if (!user) throw new NotFoundException(`User not found: ${userId}`);
-        if (user.role !== UserRole.INFLUENCER) {
-          throw new BadRequestException(`User ${userId} is not an influencer`);
-        }
-      }),
-    );
-
-    // Get existing user IDs and filter out duplicates
-    const existingUserIds = existingService.users?.map((id) => id.toString()) || [];
-    const newUserIds = userIds.filter((id) => !existingUserIds.includes(id));
-
-    if (newUserIds.length === 0) {
-      throw new BadRequestException('All provided users are already part of this collaboration service');
-    }
-
-    // Add new users to the existing service
-    const newUserObjectIds = newUserIds.map((id) => new Types.ObjectId(id));
-
-    return await this.influencerServiceModal.findOneAndUpdate(
-      { _id: new Types.ObjectId(serviceId) },
-      {
-        $addToSet: {
-          users: { $each: newUserObjectIds },
-        },
-      },
-      { new: true },
-    );
-  }
-
-  /**
-   * Admin method to remove users from a collaboration service
-   */
-  async removeUsersFromCollaborationService(adminUserId: string, serviceId: string, userIds: string[]) {
-    // Verify admin user
-    const adminUser = await this.userService.getAdminById(adminUserId);
-    if (!adminUser) throw new NotFoundException('Admin user not found');
-    if (adminUser.role !== UserRole.ADMIN) {
-      throw new ForbiddenException({
-        message: 'Only admin can remove users from collaboration services',
-        error: 'Access Denied',
-      });
-    }
-
-    if (!isValidObjectId(serviceId)) throw new BadRequestException('Invalid serviceId');
-
-    // Get existing service
-    const existingService = await this.influencerServiceModal.findById(serviceId);
-    if (!existingService) throw new NotFoundException('Service not found');
-
-    if (existingService.type !== ServiceType.COLLABORATION) {
-      throw new BadRequestException('Can only remove users from collaboration services');
-    }
-
-    // Validate user IDs
-    if (!userIds || userIds.length === 0) {
-      throw new BadRequestException('At least one user ID must be provided');
-    }
-
-    // Validate that user IDs are valid ObjectIds
-    userIds.forEach((userId) => {
-      if (!isValidObjectId(userId)) throw new BadRequestException(`Invalid user ID: ${userId}`);
-    });
-
-    // Check if removing users would leave the service empty
-    const existingUserIds = existingService.users?.map((id) => id.toString()) || [];
-    const remainingUsers = existingUserIds.filter((id) => !userIds.includes(id));
-
-    if (remainingUsers.length === 0) {
-      throw new BadRequestException('Cannot remove all users from collaboration service. At least one user must remain.');
-    }
-
-    // Remove users from the service
-    const userObjectIds = userIds.map((id) => new Types.ObjectId(id));
-
-    return await this.influencerServiceModal.findOneAndUpdate(
-      { _id: new Types.ObjectId(serviceId) },
-      {
-        $pull: {
-          users: { $in: userObjectIds },
-        },
-      },
-      { new: true },
-    );
   }
 
   async deleteInfluencerServiceById(serviceId: string, options: { currentUserId?: string; currentUserRole: UserRole }) {
@@ -402,25 +227,24 @@ export class InfluencerServiceService {
   }
 
   // Add a method for admin to approve a service and create contract
-  async approveInfluencerServiceAndCreateContract(adminId: string, serviceId: string, contractData: Partial<Contract>) {
-    // Check admin
-    const adminUser = await this.userService.getAdminById(adminId);
-    if (!adminUser || adminUser.role !== UserRole.ADMIN) {
-      throw new ForbiddenException({ message: 'Only admin can approve services', error: 'Access Denied' });
-    }
-    // Find service
+  async updateInfluecnerServiceStatus(
+    currentUser: Partial<User>,
+    serviceId: string,
+    { status, reason }: { status: ServiceStatus; reason?: string },
+  ) {
+    if (!Object.values(ServiceStatus).includes(status as ServiceStatus)) throw new BadRequestException('Invalid service status');
+    if (currentUser.role !== UserRole.ADMIN) throw new UnauthorizedException("You don't have permission to access this service");
     const service = await this.influencerServiceModal.findById(serviceId);
     if (!service) throw new NotFoundException('Service not found');
-    if (service.status === 'approved') throw new BadRequestException('Service already approved');
-    // Create contract
-    const contract = await this.contractModel.create({
-      ...contractData,
-      createdBy: new Types.ObjectId(adminId),
-      serviceId: new Types.ObjectId(serviceId),
-    });
+
+    if (service.status == ServiceStatus.APPROVED) throw new BadRequestException('Service already approved');
+    if (service.status == ServiceStatus.REJECTED) throw new BadRequestException('Service already rejected');
+
     // Update service
-    service.status = 'approved';
-    service.contract = contract._id;
+    service.status = status;
+
+    if (status == ServiceStatus.REJECTED) service.rejectReason = reason;
+
     await service.save();
     return this.influencerServiceModal.findById(serviceId).populate('contract');
   }

@@ -11,30 +11,11 @@ export enum ServiceType {
   COLLABORATION = 'collaboration',
 }
 
-@Schema({ timestamps: true })
-export class Contract {
-  _id?: Types.ObjectId | string;
-
-  @Prop({ required: true })
-  title: string;
-
-  @Prop({ required: true })
-  content: string;
-
-  @Prop({ type: Types.ObjectId, ref: 'User', required: true })
-  createdBy: Types.ObjectId;
-
-  @Prop({ type: Types.ObjectId, ref: 'InfluencerServices', required: true })
-  serviceId: Types.ObjectId;
-
-  @Prop({ type: String })
-  userSignatureImage?: string;
-
-  @Prop({ type: String })
-  influencerSignatureImage?: string;
+export enum ServiceStatus {
+  PENDING = 'pending',
+  REJECTED = 'rejected',
+  APPROVED = 'approved',
 }
-
-export const ContractSchema = SchemaFactory.createForClass(Contract);
 
 @Schema({ timestamps: true })
 export class InfluencerServices {
@@ -44,7 +25,10 @@ export class InfluencerServices {
   users?: Types.ObjectId[] | string[];
 
   @Prop({ required: true, type: Types.ObjectId, ref: 'User' })
-  createdBy?: Types.ObjectId;
+  createdBy?: Types.ObjectId; // Influecner id
+
+  @Prop({ required: true, type: Types.ObjectId, ref: 'User' })
+  serviceAdminId: Types.ObjectId;
 
   @Prop({ required: true, enum: ServiceType, default: ServiceType.INDIVIDUAL })
   type: ServiceType;
@@ -64,14 +48,11 @@ export class InfluencerServices {
   @Prop({ required: true, type: Number, min: 1 })
   minimumDaysForCompletion: number;
 
-  // @Prop({ default: false, type: Boolean })
-  // requireTimeSlot?: boolean;
-
   @Prop({ default: false, type: Boolean })
   locationRequired?: boolean;
 
-  @Prop({ default: 0, type: Number })
-  duration?: number;
+  // @Prop({ default: 0, type: Number })
+  // duration?: number;
 
   // Collaboration specific fields
   @Prop({ type: Object })
@@ -84,8 +65,11 @@ export class InfluencerServices {
   @Prop({ type: Types.ObjectId, ref: 'Contract' })
   contract?: Types.ObjectId | string;
 
-  @Prop({ required: true, enum: ['pending', 'approved'], default: 'pending' })
-  status: 'pending' | 'approved';
+  @Prop({ required: true, enum: ServiceStatus, default: ServiceStatus.PENDING })
+  status: ServiceStatus;
+
+  @Prop({ type: String })
+  rejectReason?: string;
 }
 
 export const InfluencerServicesSchema = SchemaFactory.createForClass(InfluencerServices);

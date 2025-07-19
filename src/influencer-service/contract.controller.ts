@@ -2,12 +2,12 @@ import { Body, Controller, Get, Param, Post, Put, Query, Req } from '@nestjs/com
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { Contract } from './schemas/influencer-service.schema';
 import { Roles } from 'src/common/decorators/role.decorator';
 import { UserRole } from 'src/user/schemas/user.schema';
 import { InfluencerServiceService } from './influencer-service.service';
 import { CreateContractDto } from './dto/contract.dto';
 import { Request } from 'express';
+import { Contract } from './schemas/contract-schema';
 
 @ApiTags('Contract Management (Admin)')
 @ApiBearerAuth('access-token')
@@ -26,15 +26,8 @@ export class ContractController {
     // Instead of just creating contract, approve the service and attach contract
     const { serviceId, ...contractData } = body;
     // req.user.userId is the admin
-    return this.approveServiceAndAttachContract(req.user?.userId!, serviceId, contractData);
-  }
-
-  // Helper to call service method
-  private async approveServiceAndAttachContract(adminId: string, serviceId: string, contractData: any) {
-    // Use InfluencerServiceService to approve and attach contract
-    // This requires injecting InfluencerServiceService
-    // We'll assume it's injected as 'private readonly influencerServiceService: InfluencerServiceService'
-    return this.influencerServiceService.approveInfluencerServiceAndCreateContract(adminId, serviceId, contractData);
+    // TODO: Create Contract - - - 
+    // return this.approveServiceAndAttachContract(req.user?.userId!, serviceId, contractData);
   }
 
   @Get()
