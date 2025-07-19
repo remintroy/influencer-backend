@@ -1,17 +1,16 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsArray, IsBoolean, IsEmail, IsEnum, IsNumber, IsOptional, IsString, IsUrl, ValidateNested } from 'class-validator';
+import { IsArray, IsBoolean, IsEmail, IsMongoId, IsNumber, IsOptional, IsString, IsUrl, ValidateNested } from 'class-validator';
 import { Types } from 'mongoose';
 import { Type } from 'class-transformer';
-import { InfluencerPlatforms } from '../schemas/user.schema';
 
 class SocialMediaEntry {
   @ApiPropertyOptional({
-    enum: InfluencerPlatforms,
-    description: 'The social media platform (e.g., Instagram, YouTube, TikTok).',
-    example: InfluencerPlatforms.Instagram,
+    description: 'The platform ObjectId (reference to Platform collection).',
+    example: '60f7b2e1c1234a1234567890',
+    type: String,
   })
-  @IsEnum(InfluencerPlatforms)
-  platform: InfluencerPlatforms;
+  @IsMongoId()
+  platform: string;
 
   @ApiPropertyOptional({
     description: 'The handle or username on the platform.',
@@ -77,7 +76,7 @@ export class UpdateUserDto {
   // Influencer specific fields
   @ApiPropertyOptional({
     type: [SocialMediaEntry],
-    description: 'List of influencer social media profiles with platform, handle, follower count, and URL.',
+    description: 'List of influencer social media profiles with platform (ObjectId), handle, follower count, and URL.',
   })
   @IsOptional()
   @IsArray()
@@ -142,7 +141,7 @@ export class UpdateUserDto {
   @ApiPropertyOptional({
     description: 'To disable user',
     example: false,
-    default: false
+    default: false,
   })
   @IsOptional()
   @IsBoolean()

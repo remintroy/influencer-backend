@@ -19,6 +19,7 @@ import { CouponModule } from './coupon/coupon.module';
 import { FlashDealModule } from './flash-deal/flash-deal.module';
 import { TagModule } from './tag/tag.module';
 import { FavoritesModule } from './favorites/favorites.module';
+import { PlatformModule } from './platform/platform.module';
 
 /**
  * Root application module
@@ -69,6 +70,7 @@ import { FavoritesModule } from './favorites/favorites.module';
     FlashDealModule,
     TagModule,
     FavoritesModule,
+    PlatformModule,
   ],
   controllers: [AppController],
   providers: [AppService, JwtStrategy],

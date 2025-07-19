@@ -15,16 +15,6 @@ export enum UserAccountType {
   AGENCY = 'agency',
 }
 
-export enum InfluencerPlatforms {
-  Instagram = 'Instagram',
-  YouTube = 'YouTube',
-  TikTok = 'TikTok',
-  Twitter = 'Twitter',
-  Facebook = 'Facebook',
-  LinkedIn = 'LinkedIn',
-  Other = 'Other',
-}
-
 export type UserPaginationResponse = PaginationResponse<Partial<User>[]>;
 
 @Schema({ timestamps: true })
@@ -67,7 +57,7 @@ export class User {
   @Prop({
     type: [
       {
-        platform: { type: String, enum: InfluencerPlatforms },
+        platform: { type: Types.ObjectId, ref: 'Platform' },
         handle: String,
         followers: Number,
         url: String,
@@ -76,7 +66,7 @@ export class User {
     default: [],
   })
   socialMedia?: {
-    platform: string;
+    platform: Types.ObjectId | string;
     handle?: string;
     followers?: number;
     url?: string;
