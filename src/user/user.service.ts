@@ -75,6 +75,46 @@ export class UserService {
             { $skip: (page - 1) * limit },
             { $limit: limit },
             { $lookup: { from: 'categories', localField: 'category', foreignField: '_id', as: 'category' } },
+            {
+              $lookup: {
+                from: 'platforms', // The collection where platforms are stored
+                localField: 'socialMedia.platform', // The field in the current collection
+                foreignField: '_id', // The field in the 'platforms' collection
+                as: 'platformDetails', // The output array field
+              },
+            },
+            {
+              $addFields: {
+                socialMedia: {
+                  $map: {
+                    input: '$socialMedia',
+                    as: 'sm',
+                    in: {
+                      $mergeObjects: [
+                        '$$sm',
+                        {
+                          platform: {
+                            $arrayElemAt: [
+                              {
+                                $filter: {
+                                  input: '$platformDetails',
+                                  as: 'pd',
+                                  cond: { $eq: ['$$sm.platform', '$$pd._id'] },
+                                },
+                              },
+                              0,
+                            ],
+                          },
+                        },
+                      ],
+                    },
+                  },
+                },
+              },
+            },
+            {
+              $project: { platformDetails: 0 },
+            },
           ],
         },
       },
@@ -147,6 +187,7 @@ export class UserService {
     return this.userModel
       .findOne({ _id: new Types.ObjectId(id), deleted: false })
       .populate('category')
+      .populate('socialMedia.platform')
       .lean();
   }
 
@@ -156,7 +197,8 @@ export class UserService {
   async getUserById(id: string): Promise<Partial<User> | null> {
     const user = await this.userModel
       .findOne({ _id: new Types.ObjectId(id), role: { $ne: UserRole.ADMIN }, ...this.defaultQuery }, this.projection)
-      .populate('category');
+      .populate('category')
+      .populate('socialMedia.platform');
 
     return this.toUserSafe(user);
   }
@@ -203,7 +245,7 @@ export class UserService {
       {
         $match: {
           ...(options?.category ? { category: new Types.ObjectId(options?.category) } : {}),
-          ...(options?.platform ? { 'socialMedia.platform': options?.platform } : {}),
+          ...(options?.platform ? { 'socialMedia.platform': new Types.ObjectId(options?.platform) } : {}),
         },
       },
       { $sort: { name: 1, createdAt: 1 } },
@@ -238,6 +280,46 @@ export class UserService {
             { $skip: (page - 1) * limit },
             { $limit: limit },
             { $lookup: { from: 'categories', localField: 'category', foreignField: '_id', as: 'category' } },
+            {
+              $lookup: {
+                from: 'platforms', // The collection where platforms are stored
+                localField: 'socialMedia.platform', // The field in the current collection
+                foreignField: '_id', // The field in the 'platforms' collection
+                as: 'platformDetails', // The output array field
+              },
+            },
+            {
+              $addFields: {
+                socialMedia: {
+                  $map: {
+                    input: '$socialMedia',
+                    as: 'sm',
+                    in: {
+                      $mergeObjects: [
+                        '$$sm',
+                        {
+                          platform: {
+                            $arrayElemAt: [
+                              {
+                                $filter: {
+                                  input: '$platformDetails',
+                                  as: 'pd',
+                                  cond: { $eq: ['$$sm.platform', '$$pd._id'] },
+                                },
+                              },
+                              0,
+                            ],
+                          },
+                        },
+                      ],
+                    },
+                  },
+                },
+              },
+            },
+            {
+              $project: { platformDetails: 0 },
+            },
             ...(!hasService
               ? [
                   {
@@ -281,7 +363,8 @@ export class UserService {
   async getUserByIdPreviewSudo(id: string): Promise<Partial<User> | null> {
     const user = await this.userModel
       .findOne({ _id: new Types.ObjectId(id), role: { $ne: UserRole.ADMIN }, deleted: { $ne: true } }, this.projection)
-      .populate('category');
+      .populate('category')
+      .populate('socialMedia.platform');
 
     return this.toUserSafe(user);
   }
@@ -294,6 +377,7 @@ export class UserService {
 
     const user = await this.userModel
       .findOne({ _id: new Types.ObjectId(id), role: UserRole.INFLUENCER, ...this.defaultQuery }, this.projection)
+      .populate('socialMedia.platform')
       .lean();
     return this.toUserSafe(user);
   }
