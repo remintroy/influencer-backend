@@ -3,6 +3,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { OrderController } from './order.controller';
 import { OrderService } from './order.service';
 import { Order, OrderSchema } from './schemas/order.schema'; 
+import { ScheduleModule } from '@nestjs/schedule';
 import { CartModule } from '../cart/cart.module';
 import { InfluencerServiceModule } from '../influencer-service/influencer-service.module';
 import { AvailabilityModule } from '../availability/availability.module';
@@ -19,6 +20,7 @@ import { Contract, ContractSchema } from 'src/influencer-service/schemas/contrac
     CartModule,
     InfluencerServiceModule,
     AvailabilityModule,
+    ScheduleModule.forRoot(),
   ],
   controllers: [OrderController],
   providers: [OrderService],

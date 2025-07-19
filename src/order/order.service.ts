@@ -8,6 +8,7 @@ import { UserRole } from '../user/schemas/user.schema';
 import { InfluencerServiceService } from '../influencer-service/influencer-service.service';
 import { AvailabilityService } from '../availability/availability.service';
 import { Payment, PaymentStatus } from './schemas/payment.schema';
+import { Cron } from '@nestjs/schedule';
 
 @Injectable()
 export class OrderService {
@@ -40,7 +41,9 @@ export class OrderService {
     const createdOrders: Order[] = [];
     for (const cartItem of cart.items) {
       // Get latest service data
-      const service = await this.influencerServiceService.getInfluencerServiceByServiceId(cartItem.serviceId.toString(), { currentUserId: userId });
+      const service = await this.influencerServiceService.getInfluencerServiceByServiceId(cartItem.serviceId.toString(), {
+        currentUserId: userId,
+      });
       if (!service) {
         throw new BadRequestException(`Service ${cartItem.serviceId} not found`);
       }
@@ -86,7 +89,48 @@ export class OrderService {
     return createdOrders;
   }
 
-  async getOrder(userId: string, orderId: string): Promise<Order> {
+  // Add this function to map DB status to user-facing status
+  private mapOrderStatusForUser(order: Order, userId: string, userRole: UserRole): string {
+    const status = order.item.status;
+    // Influencer team lead (serviceAdminId) logic can be added here if needed
+    switch (status) {
+      case OrderStatus.PENDING:
+        if (!order.item.contractSignatures?.influencerSigned) {
+          return userRole === UserRole.INFLUENCER ? 'Awaiting Your Approval' : 'Awaiting Influencer Approval';
+        }
+        if (!order.item.contractSignatures.clientSigned) {
+          return userRole === UserRole.INFLUENCER ? 'Awaiting Customer Approval' : 'Awaiting Your Approval';
+        }
+        return 'Awaiting to be approved';
+
+      case OrderStatus.APPROVED:
+        return 'Awaiting Payment';
+        break;
+      case OrderStatus.REJECTED:
+        if (order.item.rejectedBy?.toString() === userId) {
+          return 'Rejected by You';
+        } else if (userRole === UserRole.INFLUENCER) {
+          return 'Rejected by Customer';
+        } else if (userRole === UserRole.USER) {
+          return 'Rejected by Influencer';
+        }
+        break;
+      case OrderStatus.PAID:
+        return 'Awaiting For Your Script';
+      case OrderStatus.IN_PROGRESS:
+        return 'Script to be Approved';
+      case OrderStatus.COMPLETED:
+        return 'Ready to Published';
+      case OrderStatus.CANCELLED:
+        return 'Cancelled';
+      default:
+        return status;
+    }
+    // Default fallback
+    return status;
+  }
+
+  async getOrder(userId: string, orderId: string): Promise<any> {
     const order = await this.orderModel
       .findOne({
         _id: new Types.ObjectId(orderId),
@@ -98,13 +142,21 @@ export class OrderService {
       throw new NotFoundException('Order not found');
     }
 
-    return order;
+    // Add clientStatus to response
+    const userRole = order.userId.toString() === userId ? UserRole.USER : UserRole.INFLUENCER;
+    const clientStatus = this.mapOrderStatusForUser(order, userId, userRole);
+    return { ...order.toObject(), clientStatus };
   }
 
-  async getUserOrders(userId: string): Promise<Order[]> {
-    return this.orderModel
+  async getUserOrders(userId: string): Promise<any[]> {
+    const orders = await this.orderModel
       .find({ userId: new Types.ObjectId(userId) })
       .populate({ path: 'item.serviceId', populate: { path: 'contract' } });
+    return orders.map((order) => {
+      const userRole = order.userId.toString() === userId ? UserRole.USER : UserRole.INFLUENCER;
+      const clientStatus = this.mapOrderStatusForUser(order, userId, userRole);
+      return { ...order.toObject(), clientStatus };
+    });
   }
 
   async updateOrderStatus(
@@ -248,6 +300,48 @@ export class OrderService {
       influencerSigned: item.contractSignatures?.influencerSigned || false,
       signedAt: item.contractSignatures?.signedAt,
     };
+  }
+
+  // Auto-cancel orders not signed in time
+  async autoCancelUnsignedOrders(): Promise<number> {
+    // Find all PENDING orders
+    const pendingOrders = await this.orderModel.find({ 'item.status': OrderStatus.PENDING });
+    let cancelledCount = 0;
+    for (const order of pendingOrders) {
+      const item = order.item;
+      // If already signed by both, skip
+      if (item.contractSignatures?.clientSigned && item.contractSignatures?.influencerSigned) continue;
+      // Calculate deadline: max(2 days, half the order duration)
+      let createdAt: Date;
+      if ((order as any).createdAt) {
+        createdAt = (order as any).createdAt;
+      } else if (order._id && typeof order._id === 'object' && typeof (order._id as any).getTimestamp === 'function') {
+        createdAt = (order._id as any).getTimestamp();
+      } else {
+        createdAt = new Date(); // fallback to now if not available
+      }
+      const deliveryDate = item.deliveryDate;
+      const now = new Date();
+      let minWindow = 2 * 24 * 60 * 60 * 1000; // 2 days in ms
+      let halfDuration = deliveryDate && createdAt ? Math.floor((deliveryDate.getTime() - createdAt.getTime()) / 2) : 0;
+      let deadline = new Date(createdAt.getTime() + Math.min(minWindow, halfDuration));
+      if (now > deadline) {
+        item.status = OrderStatus.CANCELLED;
+        item.rejectionReason = 'Order auto-cancelled due to timeout (not signed in time)';
+        await order.save();
+        cancelledCount++;
+      }
+    }
+    return cancelledCount;
+  }
+
+  // Cron job to auto-cancel unsigned orders at 12 AM every day
+  @Cron('0 0 * * *')
+  async handleAutoCancelUnsignedOrdersCron() {
+    const cancelled = await this.autoCancelUnsignedOrders();
+    if (cancelled > 0) {
+      console.log(`[OrderService] Auto-cancelled ${cancelled} unsigned orders at 12 AM`);
+    }
   }
 
   private validateStatusTransition(currentStatus: OrderStatus, newStatus: OrderStatus, userRole: UserRole): void {
