@@ -1,5 +1,17 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsDate, IsMongoId, IsNotEmpty, IsNumber, IsString, Min, ValidateIf, registerDecorator, ValidationOptions, ValidationArguments } from 'class-validator';
+import {
+  IsDate,
+  IsMongoId,
+  IsNotEmpty,
+  IsNumber,
+  IsString,
+  Min,
+  ValidateIf,
+  registerDecorator,
+  ValidationOptions,
+  ValidationArguments,
+  IsOptional,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 function IsDeliveryDateValid(property: string, validationOptions?: ValidationOptions) {
@@ -16,7 +28,7 @@ function IsDeliveryDateValid(property: string, validationOptions?: ValidationOpt
           if (!obj.service) return true; // skip if service not loaded
           const minDays = obj.service.minimumDaysForCompletion || 1;
           const today = new Date();
-          today.setHours(0,0,0,0);
+          today.setHours(0, 0, 0, 0);
           const minDate = new Date(today);
           minDate.setDate(today.getDate() + minDays);
           return value >= minDate;
@@ -53,4 +65,9 @@ export class AddToCartDto {
   // This will be set in the service, not by the client
   // locationRequired?: boolean;
   // service?: any;
+
+  @ApiProperty({ description: 'Optional notes for the cart item', required: false })
+  @IsString()
+  @IsOptional()
+  notes?: string;
 }

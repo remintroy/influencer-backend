@@ -24,4 +24,9 @@ export class UpdateCartItemDto {
   @IsNumber()
   @Min(0)
   price?: number;
+
+  @ApiPropertyOptional({ description: 'Notes for the cart item', required: false })
+  @IsOptional()
+  @IsString()
+  notes?: string;
 }

@@ -71,6 +71,7 @@ export class CartService {
       location: addToCartDto.location,
       price: service?.price! || 0,
       disabled: false,
+      notes: addToCartDto.notes,
     };
 
     // Add item to cart and update total

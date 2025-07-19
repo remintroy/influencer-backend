@@ -46,6 +46,9 @@ export class CartItem {
 
   @Prop({ type: Types.ObjectId, ref: 'Booking' })
   bookingId?: Types.ObjectId;
+
+  @Prop({ type: String })
+  notes?: string;
 }
 
 @Schema({ timestamps: true })
@@ -68,3 +71,4 @@ export const CartSchema = SchemaFactory.createForClass(Cart);
 CartSchema.index({ userId: 1 });
 CartSchema.index({ 'items.serviceId': 1 });
 CartSchema.index({ 'items.influencerId': 1 });
+CartSchema.index({ createdAt: 1 }, { expireAfterSeconds: 10800 }); // TTL 3 hours

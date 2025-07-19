@@ -7,7 +7,7 @@ import { Request } from 'express';
 import { Roles } from 'src/common/decorators/role.decorator';
 import { UserRole } from 'src/user/schemas/user.schema';
 
-@ApiTags('Cart (Beta)')
+@ApiTags('Cart')
 @Controller('cart')
 @ApiBearerAuth('access-token')
 export class CartController {
