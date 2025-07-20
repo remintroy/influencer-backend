@@ -331,12 +331,13 @@ export class OrderService {
       // Contact content
       doc.setFontSize(16);
       doc.setFont('helvetica', 'normal');
-      doc.text(contract.content, 10, 40);
+      doc.text(contract.content, 10, 30, { maxWidth: 190 });
 
       // Influencer Sing
       if (!item.contractSignatures.influencerSignatureImage) throw new BadRequestException('Influencer signature is required');
+      doc.text('Influencer signature', 10, 255);
       await this.addImageToDoc(doc, {
-        boxX: 10,
+        boxX: 15,
         boxY: 255,
         boxWidth: 30,
         boxHeight: 30,
@@ -345,6 +346,7 @@ export class OrderService {
 
       // Client Sing
       if (!item.contractSignatures.clientSignatureImage) throw new BadRequestException('Client signature is required');
+      doc.text('Client signature', 160, 255);
       await this.addImageToDoc(doc, {
         boxX: 165,
         boxY: 255,
