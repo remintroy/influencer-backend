@@ -1,6 +1,14 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
+import { jsPDF } from 'jspdf';
+import sizeOf from 'image-size';
 import { Order, OrderStatus } from './schemas/order.schema';
 import { CartService } from '../cart/cart.service';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
@@ -9,6 +17,11 @@ import { InfluencerServiceService } from '../influencer-service/influencer-servi
 import { AvailabilityService } from '../availability/availability.service';
 import { Payment, PaymentStatus } from './schemas/payment.schema';
 import { Cron } from '@nestjs/schedule';
+import axios from 'axios';
+import { Contract } from 'src/influencer-service/schemas/contract-schema';
+import * as fs from 'fs/promises';
+import * as path from 'path';
+import { S3Service } from 'src/common/s3/s3.service';
 
 @Injectable()
 export class OrderService {
@@ -17,6 +30,7 @@ export class OrderService {
     @InjectModel(Payment.name) private paymentModel: Model<Payment>,
     private readonly cartService: CartService,
     private readonly influencerServiceService: InfluencerServiceService,
+    private readonly s3Service: S3Service,
     private readonly availabilityService: AvailabilityService,
   ) {}
 
@@ -73,7 +87,7 @@ export class OrderService {
         orderGroupId,
         item: {
           serviceId: cartItem.serviceId,
-          influencerIds: service.users.map((user) => new Types.ObjectId(user?._id || user)),
+          influencerIds: service.users.map((user: any) => new Types.ObjectId(user?._id || user)),
           deliveryDate: cartItem.deliveryDate,
           location: cartItem.location,
           price: cartItem.price,
@@ -247,11 +261,36 @@ export class OrderService {
     return this.orderModel.findById(orderId);
   }
 
+  addImageToDoc = async (doc: jsPDF, { boxX, boxY, boxWidth, boxHeight, imageUrl }) => {
+    const response = await axios.get(imageUrl, { responseType: 'arraybuffer' });
+    const buffer = Buffer.from(response.data, 'binary');
+    const base64 = buffer.toString('base64');
+    const dimensions = sizeOf(buffer);
+
+    //
+    const widthRatio = boxWidth / dimensions.width;
+    const heightRatio = boxHeight / dimensions.height;
+    const scale = Math.min(widthRatio, heightRatio, 1); // Don't upscale
+
+    //
+    const width = dimensions.width * scale;
+    const height = dimensions.height * scale;
+
+    //
+    const x = boxX + (boxWidth - width) / 2;
+    const y = boxY + (boxHeight - height) / 2;
+
+    // Adding image to DOC
+    doc.addImage('data:image/png;base64,' + base64, 'PNG', x, y, width, height);
+  };
+
   async signContract(orderId: string, userId: string, role: UserRole, signatureImage?: string) {
     const order = await this.orderModel.findById(orderId);
     if (!order) throw new NotFoundException('Order not found');
     const item = order.item;
     if (!item) throw new NotFoundException('Order item not found');
+
+    if (!signatureImage) throw new BadRequestException('Signature is required');
 
     // Permission check
     if (role === UserRole.USER && order.userId.toString() !== userId) {
@@ -266,19 +305,83 @@ export class OrderService {
       item.contractSignatures = {};
     }
     if (role === UserRole.USER) {
+      if (item.contractSignatures.clientSigned) throw new BadRequestException('Already signed');
       item.contractSignatures.clientSigned = true;
-      if (signatureImage) item.contractSignatures.clientSignatureImage = signatureImage;
+      item.contractSignatures.clientSignatureImage = signatureImage;
     }
     if (role === UserRole.INFLUENCER) {
+      if (item.contractSignatures.influencerSigned) throw new BadRequestException('Already signed');
       item.contractSignatures.influencerSigned = true;
-      if (signatureImage) item.contractSignatures.influencerSignatureImage = signatureImage;
+      item.contractSignatures.influencerSignatureImage = signatureImage;
     }
     if (item.contractSignatures.clientSigned && item.contractSignatures.influencerSigned) {
       item.contractSignatures.signedAt = new Date();
       item.status = OrderStatus.APPROVED;
-    }
 
-    // TODO: GENERATE SAND SAVE PDF OF SING
+      // TODO: GENERATE SAND SAVE PDF OF SING
+      const service = await this.influencerServiceService.getInfluencerServiceByServiceId(order.item.serviceId + '');
+      const contract: Contract = service.contract as unknown as Contract;
+      const doc = new jsPDF();
+
+      // TItle
+      doc.setFontSize(22);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Contract for service', 10, 20);
+
+      // Contact content
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'normal');
+      doc.text(contract.content, 10, 40);
+
+      // Influencer Sing
+      if (!item.contractSignatures.influencerSignatureImage) throw new BadRequestException('Influencer signature is required');
+      await this.addImageToDoc(doc, {
+        boxX: 10,
+        boxY: 255,
+        boxWidth: 30,
+        boxHeight: 30,
+        imageUrl: item.contractSignatures.influencerSignatureImage,
+      });
+
+      // Client Sing
+      if (!item.contractSignatures.clientSignatureImage) throw new BadRequestException('Client signature is required');
+      await this.addImageToDoc(doc, {
+        boxX: 165,
+        boxY: 255,
+        boxWidth: 30,
+        boxHeight: 30,
+        imageUrl: item.contractSignatures.influencerSignatureImage,
+      });
+
+      const folderPath = path.join(process.cwd(), 'tmp');
+      const docId = Date.now();
+      const filePath = path.join(folderPath, `${docId}.pdf`);
+
+      try {
+        await fs.mkdir(folderPath);
+      } catch (error) {
+        if (error.code != 'EEXIST') {
+          console.log(error, 'ERROR while creating temp directory for pdf');
+          throw new InternalServerErrorException('Error creating pdf');
+        }
+      }
+
+      // Save file to temp folder
+      doc.save(filePath);
+
+      // Read the file as a buffer
+      const fileBuffer = await fs.readFile(filePath);
+      const s3UploadResult = await this.s3Service.uploadFile({
+        buffer: fileBuffer,
+        fileName: `${docId}.pdf`,
+        fileType: 'application/pdf',
+      });
+
+      item.contractSignatures.contractPdfUrl = s3UploadResult.url;
+
+      // Delete file from temp folder after upload
+      fs.unlink(filePath).catch(console.log);
+    }
 
     await order.save();
     return {
@@ -286,8 +389,7 @@ export class OrderService {
       influencerSigned: item.contractSignatures.influencerSigned || false,
       signedAt: item.contractSignatures.signedAt,
       orderStatus: this.mapOrderStatusForUser(order, userId, role),
-      clientSignatureImage: item.contractSignatures.clientSignatureImage,
-      influencerSignatureImage: item.contractSignatures.influencerSignatureImage,
+      pdfUrl: item.contractSignatures.contractPdfUrl,
     };
   }
 
@@ -347,6 +449,24 @@ export class OrderService {
     if (cancelled > 0) {
       console.log(`[OrderService] Auto-cancelled ${cancelled} unsigned orders at 12 AM`);
     }
+  }
+
+  // Get all orders pending influencer approval for a given influencer
+  async getPendingOrdersForInfluencer(influencerId: string): Promise<any[]> {
+    const orders = await this.orderModel
+      .find({
+        'item.status': OrderStatus.PENDING,
+        'item.influencerIds': new Types.ObjectId(influencerId),
+        $or: [
+          { 'item.contractSignatures.influencerSigned': { $ne: true } },
+          { 'item.contractSignatures.influencerSigned': { $exists: false } },
+        ],
+      })
+      .populate({ path: 'item.serviceId', populate: { path: 'contract' } });
+    return orders.map((order) => {
+      const orderStatus = this.mapOrderStatusForUser(order, influencerId, UserRole.INFLUENCER);
+      return { ...order.toObject(), orderStatus };
+    });
   }
 
   private validateStatusTransition(currentStatus: OrderStatus, newStatus: OrderStatus, userRole: UserRole): void {

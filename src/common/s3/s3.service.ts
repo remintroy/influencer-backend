@@ -32,4 +32,26 @@ export class S3Service {
 
     return { url, key };
   }
+
+  async uploadFile({
+    buffer,
+    fileName,
+    fileType,
+  }: {
+    buffer: Buffer;
+    fileName: string;
+    fileType: string;
+  }): Promise<{ key: string; url: string }> {
+    const key = `${Date.now()}-${fileName?.slice?.(0, 20) || ''}`;
+    const command = new PutObjectCommand({
+      Bucket: this.configService.get('AWS_BUCKET_NAME'),
+      Key: key,
+      Body: buffer,
+      ContentType: fileType || 'application/octet-stream',
+    });
+    await this.s3.send(command);
+    // Optionally, construct the file URL (public or signed, depending on your bucket policy)
+    const url = `https://${this.configService.get('AWS_BUCKET_NAME')}.s3.${this.configService.get('AWS_REGION')}.amazonaws.com/${key}`;
+    return { key, url };
+  }
 }

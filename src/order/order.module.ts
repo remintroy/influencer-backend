@@ -2,13 +2,14 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { OrderController } from './order.controller';
 import { OrderService } from './order.service';
-import { Order, OrderSchema } from './schemas/order.schema'; 
+import { Order, OrderSchema } from './schemas/order.schema';
 import { ScheduleModule } from '@nestjs/schedule';
 import { CartModule } from '../cart/cart.module';
 import { InfluencerServiceModule } from '../influencer-service/influencer-service.module';
 import { AvailabilityModule } from '../availability/availability.module';
 import { Payment, PaymentSchema } from './schemas/payment.schema';
 import { Contract, ContractSchema } from 'src/influencer-service/schemas/contract-schema';
+import { S3Module } from 'src/common/s3/s3.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { Contract, ContractSchema } from 'src/influencer-service/schemas/contrac
     InfluencerServiceModule,
     AvailabilityModule,
     ScheduleModule.forRoot(),
+    S3Module,
   ],
   controllers: [OrderController],
   providers: [OrderService],

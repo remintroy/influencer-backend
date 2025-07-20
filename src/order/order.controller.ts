@@ -5,6 +5,7 @@ import { OrderService } from './order.service';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 import { Roles } from '../common/decorators/role.decorator';
 import { UserRole } from '../user/schemas/user.schema';
+import { SignContractDto } from './dto/sign-contract.dto';
 
 @ApiTags('Order Management (Beta)')
 @Controller('orders')
@@ -29,6 +30,15 @@ export class OrderController {
   async getUserOrders(@Req() req: Request) {
     const userId = req?.user?.userId!;
     return this.orderService.getUserOrders(userId);
+  }
+
+  @Get('pending-approval')
+  @ApiOperation({ summary: 'Get all orders pending influencer approval' })
+  @ApiResponse({ status: 200, description: 'Returns all pending orders for influencer approval' })
+  @Roles(UserRole.INFLUENCER)
+  async getPendingOrdersForInfluencer(@Req() req: Request) {
+    const influencerId = req?.user?.userId!;
+    return this.orderService.getPendingOrdersForInfluencer(influencerId);
   }
 
   @Get(':id')
@@ -75,15 +85,9 @@ export class OrderController {
   @ApiOperation({ summary: 'Sign contract for an order (user or influencer)' })
   @ApiParam({ name: 'orderId', description: 'Order ID' })
   @Roles(UserRole.USER, UserRole.INFLUENCER)
-  async signContract(
-    @Req() req: Request,
-    @Param('orderId') orderId: string,
-    @Body('role') role: 'user' | 'influencer',
-    @Body('signatureImage') signatureImage?: string,
-  ) {
+  async signContract(@Req() req: Request, @Param('orderId') orderId: string, @Body() body: SignContractDto) {
     const userId = req?.user?.userId!;
-    const userRole = role === 'user' ? UserRole.USER : UserRole.INFLUENCER;
-    return this.orderService.signContract(orderId, userId, userRole, signatureImage);
+    return this.orderService.signContract(orderId, userId, req?.user?.role!, body.signatureImage);
   }
 
   @Get(':orderId/contract/status')

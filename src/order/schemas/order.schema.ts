@@ -39,6 +39,7 @@ export class OrderItem {
       signedAt: { type: Date },
       clientSignatureImage: { type: String },
       influencerSignatureImage: { type: String },
+      contractPdfUrl: { type: String },
     },
     required: false,
     default: undefined,
@@ -50,6 +51,7 @@ export class OrderItem {
     signedAt?: Date;
     clientSignatureImage?: string;
     influencerSignatureImage?: string;
+    contractPdfUrl?: string;
   };
 
   @Prop({ type: Date, required: true })
@@ -101,4 +103,4 @@ export class Order extends Document {
   completedAt?: Date;
 }
 
-export const OrderSchema = SchemaFactory.createForClass(Order); 
+export const OrderSchema = SchemaFactory.createForClass(Order);
