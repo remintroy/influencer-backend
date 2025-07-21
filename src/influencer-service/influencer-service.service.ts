@@ -139,7 +139,10 @@ export class InfluencerServiceService {
 
   async getInfluencerServiceByServiceId(serviceId: string, options?: { currentUserId?: string; currentUserRole?: UserRole }) {
     if (!isValidObjectId(serviceId)) throw new BadRequestException('Invalid serviceId');
-    const service = await this.influencerServiceModal.findById(serviceId).populate('contract');
+    const service = await this.influencerServiceModal
+      .findById(serviceId)
+      .populate('contract')
+      .populate('users', { ...this.userService.projection });
     if (!service) throw new BadRequestException('Service not found');
     // Only return if approved, or if owner or admin
     if (
@@ -170,7 +173,8 @@ export class InfluencerServiceService {
       .find(filter)
       .skip((page - 1) * limit)
       .limit(limit)
-      .populate('contract');
+      .populate('contract')
+      .populate('users', { ...this.userService.projection });
     const totalDocs = await this.influencerServiceModal.countDocuments(filter);
     return {
       totalDocs,
