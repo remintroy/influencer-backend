@@ -231,7 +231,7 @@ export class InfluencerServiceService {
   }
 
   // Add a method for admin to approve a service and create contract
-  async updateInfluecnerServiceStatus(
+  async updateInfluencerServiceStatus(
     currentUser: Partial<User>,
     serviceId: string,
     { status, reason }: { status: ServiceStatus; reason?: string },

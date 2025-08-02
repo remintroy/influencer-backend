@@ -11,6 +11,7 @@ import { RolesGuard } from './common/guards/role.guard';
 import * as cookieParser from 'cookie-parser';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { MongoExceptionFilter } from './common/filters/mongo-exception.filter';
+import swaggerSetup from './swagger';
 
 /**
  * Bootstrap the application
@@ -57,49 +58,14 @@ async function bootstrap() {
   // Configure global prefix
   const apiPrefix = configService.get('API_PREFIX', 'api/v1');
   app.setGlobalPrefix(apiPrefix);
-
-  // Configure Swagger documentation only if enabled
-  const enableSwagger = configService.get('ENABLE_SWAGGER') ?? false;
-
-  if (enableSwagger) {
-    const config = new DocumentBuilder()
-      .setTitle('Influencer Management Platform API')
-      .setDescription('API documentation for the Influencer Management Platform')
-      .setVersion('1.0')
-      .addBearerAuth(
-        {
-          type: 'http',
-          scheme: 'bearer',
-          bearerFormat: 'JWT',
-          name: 'Authorization',
-          in: 'header',
-        },
-        'access-token', // This is the name you'll refer to in decorators
-      )
-      .addTag('Authentication', 'Authentication related endpoints')
-      .addTag('User management', 'User management endpoints')
-      .addTag('Categories', 'Category management endpoints')
-      .build();
-
-    const document = SwaggerModule.createDocument(app, config);
-    SwaggerModule.setup('api', app, document, {
-      swaggerOptions: {
-        persistAuthorization: true,
-        tagsSorter: 'alpha',
-        operationsSorter: 'alpha',
-      },
-    });
-  }
+  
+  // Setup swagger docs
+  swaggerSetup(app, apiPrefix);
 
   // Start the server
   const port = configService.get('PORT', 3000);
   await app.listen(port);
   logger.log(`Application is running on: http://localhost:${port}`);
-  if (enableSwagger) {
-    logger.log(`API Documentation available at: http://localhost:${port}/api`);
-  } else {
-    logger.warn('Swagger is disabled');
-  }
 }
 
 bootstrap();

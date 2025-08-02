@@ -2,7 +2,6 @@ import { Module } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { MongooseModule } from '@nestjs/mongoose';
 import { User, UserSchema } from 'src/user/schemas/user.schema';
-import { AuthController } from './auth.controller';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { NotificationModule } from 'src/notification/notification.module';
@@ -10,6 +9,9 @@ import { UserService } from 'src/user/user.service';
 import { RefreshToken, RefreshTokenSchema } from './schemas/refresh-token.schema';
 import { OptSchema, Otp } from './schemas/otp.schema';
 import { GoogleAuthService } from './google-auth/google-auth.service';
+import { AdminAuthController } from './admin.auth.controller';
+import { InfluencerAuthController } from './influencer.auth.controller';
+import { UserAuthController } from './user.auth.controller';
 
 @Module({
   imports: [
@@ -18,7 +20,7 @@ import { GoogleAuthService } from './google-auth/google-auth.service';
     MongooseModule.forFeature([{ name: RefreshToken.name, schema: RefreshTokenSchema }]),
     MongooseModule.forFeature([{ name: Otp.name, schema: OptSchema }]),
   ],
-  controllers: [AuthController],
+  controllers: [AdminAuthController, InfluencerAuthController, UserAuthController],
   providers: [
     AuthService,
     UserService,

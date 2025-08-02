@@ -13,10 +13,11 @@ import { UserRole } from 'src/user/schemas/user.schema';
 import { GoogleLoginDto } from './dto/google-login.dto';
 import { ResetPasswordWithOtpDto } from './dto/reset-password-with-otp.dto';
 import { ForgetPasswordDto } from './dto/forget-password.dto';
+import { SwaggerAuthTokenRoles } from 'src/swagger.config';
 
-@ApiTags('Authentication')
-@Controller('auth')
-export class AuthController {
+@ApiTags('Auth User')
+@Controller('/u/auth')
+export class UserAuthController {
   constructor(private readonly authService: AuthService) {}
 
   // ──────────────── Public Auth Endpoints ────────────────
@@ -102,10 +103,7 @@ export class AuthController {
 
   @Post('refresh-token')
   @Public()
-  @ApiOperation({
-    summary: 'Refresh Access Token',
-    description: 'Generates a new access token using a valid refresh token.',
-  })
+  @ApiOperation({ summary: 'Refresh Access Token', description: 'Generates a new access token using a valid refresh token.' })
   async refreshAccessToken(@Req() req: Request, @Body() reqData: { refreshToken?: string }) {
     const refreshToken = req.cookies?.refresh_token || reqData?.refreshToken;
     return this.authService.generateAccessTokenFromRefreshToken(refreshToken);
@@ -114,36 +112,19 @@ export class AuthController {
   // ──────────────── Protected Auth Endpoints ────────────────
 
   @Get('sessions')
-  @ApiBearerAuth('access-token')
-  @ApiOperation({
-    summary: 'Get Active Sessions',
-    description: 'Retrieves all active sessions for the authenticated user.',
-  })
+  @ApiBearerAuth(SwaggerAuthTokenRoles.USER_TOKEN)
+  @Roles(UserRole.USER)
+  @ApiOperation({ summary: 'Get Active Sessions', description: 'Retrieves all active sessions for the authenticated user.' })
   async getActiveSessions(@Req() req: Request) {
     return this.authService.getUserActiveSessions(req?.user?._id as string);
   }
 
   @Get('logout')
-  @ApiBearerAuth('access-token')
-  @ApiOperation({
-    summary: 'Logout',
-    description: 'Revokes refresh token and logs the user out.',
-  })
+  @ApiBearerAuth(SwaggerAuthTokenRoles.USER_TOKEN)
+  @Roles(UserRole.USER)
+  @ApiOperation({ summary: 'Logout', description: 'Revokes refresh token and logs the user out.' })
   async logout(@Req() req: Request) {
     const refreshToken = req.cookies?.refresh_token;
     return this.authService.logout(refreshToken);
-  }
-
-  // ──────────────── Admin-Specific Endpoints ────────────────
-
-  @Post('admin/influencer/:userId/send-credentials')
-  @Roles(UserRole.ADMIN)
-  @ApiBearerAuth('access-token')
-  @ApiOperation({
-    summary: 'Send credentials to influencer',
-    description: 'ADMIN ONLY: Sends temporary login credentials to an influencer via email.',
-  })
-  async sendCredentialsToInfluencer(@Param('userId') userId: string) {
-    return this.authService.sendCredentialsToInfluencer(userId);
   }
 }

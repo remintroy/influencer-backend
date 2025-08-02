@@ -85,7 +85,7 @@ export class InfluencerServiceController {
     @Param('serviceId') serviceId: string,
     @Body() data: UpdateInfluencerServiceStatusDto,
   ) {
-    return this.influencerServiceService.updateInfluecnerServiceStatus(req.user!, serviceId, data);
+    return this.influencerServiceService.updateInfluencerServiceStatus(req.user!, serviceId, data);
   }
 
   // VALID
