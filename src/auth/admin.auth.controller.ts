@@ -8,7 +8,7 @@ import { AuthService } from './auth.service';
 import { SigninDto } from './dto/signin.dto';
 import { SwaggerAuthTokenRoles } from 'src/swagger.config';
 
-@ApiTags('Auth Admin')
+@ApiTags('Authentication')
 @Controller('/a/auth')
 export class AdminAuthController {
   constructor(private readonly authService: AuthService) {}

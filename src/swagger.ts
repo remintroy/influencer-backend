@@ -1,9 +1,6 @@
 import { INestApplication, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { UserAuthController } from './auth/user.auth.controller';
-import { AdminAuthController } from './auth/admin.auth.controller';
-import { InfluencerAuthController } from './auth/influencer.auth.controller';
 import { SwaggerAuthTokenRoles } from './swagger.config';
 
 export default function swaggerSetup(app: INestApplication, apiPrefix: string) {
@@ -57,6 +54,7 @@ export default function swaggerSetup(app: INestApplication, apiPrefix: string) {
       },
       SwaggerAuthTokenRoles.INFLUENCER_TOKEN, // This is the name you'll refer to in decorators
     )
+    .addTag('Authentication', 'Authentication related endpoints')
     .build();
 
   const adminSwaggerConfig = new DocumentBuilder()
@@ -73,6 +71,7 @@ export default function swaggerSetup(app: INestApplication, apiPrefix: string) {
       },
       SwaggerAuthTokenRoles.ADMIN_TOKEN, // This is the name you'll refer to in decorators
     )
+    .addTag('Authentication', 'Authentication related endpoints')
     .build();
 
   const userDoc = SwaggerModule.createDocument(app, userDocConfig);

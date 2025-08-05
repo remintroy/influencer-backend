@@ -8,7 +8,7 @@ import { SigninDto } from './dto/signin.dto';
 import { Roles } from 'src/common/decorators/role.decorator';
 import { SwaggerAuthTokenRoles } from 'src/swagger.config';
 
-@ApiTags('Auth Influencer')
+@ApiTags('Authentication')
 @Controller('/in/auth')
 export class InfluencerAuthController {
   constructor(private readonly authService: AuthService) {}

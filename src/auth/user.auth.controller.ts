@@ -15,7 +15,7 @@ import { ResetPasswordWithOtpDto } from './dto/reset-password-with-otp.dto';
 import { ForgetPasswordDto } from './dto/forget-password.dto';
 import { SwaggerAuthTokenRoles } from 'src/swagger.config';
 
-@ApiTags('Auth User')
+@ApiTags('Authentication')
 @Controller('/u/auth')
 export class UserAuthController {
   constructor(private readonly authService: AuthService) {}
